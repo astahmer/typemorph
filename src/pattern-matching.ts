@@ -1,104 +1,48 @@
-import {
-  Node,
-  SyntaxKind,
-  ts,
-  type KindToNodeMappings,
-  NoSubstitutionTemplateLiteral,
-  StringLiteral,
-  TemplateHead,
-  TemplateMiddle,
-  TemplateTail,
-} from 'ts-morph'
+import { Node, SyntaxKind, ts, type KindToNodeMappings } from 'ts-morph'
+import { getSyntaxKindName } from './get-syntax-kind-name'
+import { binaryOperators } from './operators'
+import { isLiteral, isStringLike } from './ast-asserts'
+import { isNotNullish } from './asserts'
 
 type ExtractNodeKeys<T> = Exclude<keyof T, keyof ts.Node | `_${string}`>
 
 type AnyParams = Record<string, any>
-interface PatternOptions<Params> {
-  kind: SyntaxKind
-  match: (node: Node | Node[]) => boolean | undefined
+interface PatternOptions<TSyntax extends SyntaxKind, Params> {
+  kind: TSyntax
+  match: (node: Node | Node[]) => boolean | Node | Node[] | undefined
   params?: Params
 }
 
-const isStringLike = (
-  node: Node,
-): node is StringLiteral | NoSubstitutionTemplateLiteral | TemplateHead | TemplateMiddle | TemplateTail => {
-  if (
-    Node.isStringLiteral(node) ||
-    Node.isNoSubstitutionTemplateLiteral(node) ||
-    Node.isTemplateHead(node) ||
-    Node.isTemplateMiddle(node) ||
-    Node.isTemplateTail(node)
-  )
-    return true
-
-  return false
-}
-
-type InferPredicate<T> = T extends (x: any) => x is infer U ? U : never
-
-const isLiteral = (
-  node: Node,
-): node is
-  | InferPredicate<typeof isStringLike>
-  | InferPredicate<(typeof Node)['isNumericLiteral']>
-  | InferPredicate<(typeof Node)['isTrueLiteral']>
-  | InferPredicate<(typeof Node)['isFalseLiteral']>
-  | InferPredicate<(typeof Node)['isNullLiteral']>
-  | InferPredicate<(typeof Node)['isUndefinedKeyword']> => {
-  if (
-    isStringLike(node) ||
-    Node.isNumericLiteral(node) ||
-    Node.isTrueLiteral(node) ||
-    Node.isFalseLiteral(node) ||
-    Node.isNullLiteral(node) ||
-    Node.isUndefinedKeyword(node)
-  )
-    return true
-
-  return false
-}
-
-type Nullable<T> = T | null | undefined
-const isNotNullish = <T>(element: Nullable<T>): element is T => element != null
-// const isNullish = <T>(element: Nullable<T>): element is null | undefined => element == null
-
-const binaryOperators = {
-  '||': ts.SyntaxKind.BarBarToken,
-  '??': ts.SyntaxKind.QuestionQuestionToken,
-  '&&': ts.SyntaxKind.AmpersandAmpersandToken,
-  '===': ts.SyntaxKind.EqualsEqualsEqualsToken,
-  '==': ts.SyntaxKind.EqualsEqualsToken,
-  '!==': ts.SyntaxKind.ExclamationEqualsEqualsToken,
-  '!=': ts.SyntaxKind.ExclamationEqualsToken,
-  '>=': ts.SyntaxKind.GreaterThanEqualsToken,
-  '>': ts.SyntaxKind.GreaterThanToken,
-  '<=': ts.SyntaxKind.LessThanEqualsToken,
-  '<': ts.SyntaxKind.LessThanToken,
-  instanceof: ts.SyntaxKind.InstanceOfKeyword,
-  in: ts.SyntaxKind.InKeyword,
-  '*': ts.SyntaxKind.AsteriskToken,
-  '/': ts.SyntaxKind.SlashToken,
-  '%': ts.SyntaxKind.PercentToken,
-  '**': ts.SyntaxKind.AsteriskAsteriskToken,
-  '++': ts.SyntaxKind.PlusPlusToken,
-} as const
-
-export class Pattern<Params extends AnyParams = AnyParams> {
+export class Pattern<
+  TSyntax extends SyntaxKind = SyntaxKind,
+  TMatch = NodeOfKind<TSyntax>,
+  Params extends AnyParams = AnyParams,
+> {
   kind: SyntaxKind
-  matchFn: (node: Node | Node[]) => Node | Node[] | undefined
-  params?: Params
-  match?: Node | Node[]
+  kindName: string
+  matchFn: (node: Node | Node[]) => TMatch | undefined
+  params: Params
+  match?: TMatch | undefined
 
-  constructor({ kind, match: assert, params }: PatternOptions<Params>) {
+  constructor({ kind, match: assert, params }: PatternOptions<TSyntax, Params>) {
     this.kind = kind
+    this.kindName = getSyntaxKindName(kind)
     this.matchFn = (node) => {
-      if (assert(node)) {
-        this.match = node
-        return node
+      const result = assert(node)
+      if (result) {
+        const match = Node.isNode(result) ? result : node
+        this.match = match as TMatch
+        return match as TMatch
       }
     }
     this.params = params as Params
   }
+}
+
+type NodeOfKind<TKind extends SyntaxKind> = KindToNodeMappings[TKind]
+type CompilerNodeOfKind<TKind extends SyntaxKind> = KindToNodeMappings[TKind]['compilerNode']
+type NodeParams<TKind extends SyntaxKind> = {
+  [K in ExtractNodeKeys<CompilerNodeOfKind<TKind>>]?: Pattern<TKind, any>
 }
 
 export class ast {
@@ -106,12 +50,7 @@ export class ast {
     return new Pattern({ kind: syntaxKind, match: Node.isNode })
   }
 
-  static node<TKind extends SyntaxKind>(
-    type: TKind,
-    props?: {
-      [K in ExtractNodeKeys<KindToNodeMappings[TKind]['compilerNode']>]?: Pattern
-    },
-  ) {
+  static node<TKind extends SyntaxKind>(type: TKind, props?: NodeParams<TKind>) {
     return new Pattern({
       kind: type,
       match: (node: Node | Node[]) => {
@@ -128,8 +67,11 @@ export class ast {
             return false
           }
 
-          const match = (pattern as Pattern).matchFn(prop)
+          const match = (pattern as Pattern<TKind>).matchFn(prop)
           if (!match) {
+            // console.log(node.getText())
+            // console.log(prop)
+            // console.log({ node: node.getKindName(), key }, pattern)
             return false
           }
         }
@@ -144,14 +86,19 @@ export class ast {
   }
 
   static when<TNode extends Node>(condition: (node: Node) => node is TNode) {
-    return new Pattern({ kind: SyntaxKind.Unknown, match: (node) => (Array.isArray(node) ? false : condition(node)) })
+    return new Pattern<ReturnType<TNode['getKind']>, TNode>({
+      kind: SyntaxKind.Unknown as any,
+      match: (node) => (Array.isArray(node) ? false : condition(node)),
+    })
   }
 
   static named(name: string) {
     return new Pattern({
       kind: SyntaxKind.Unknown,
       match: (node) => {
-        return !Array.isArray(node) && Node.hasName(node) && node.getName() === name
+        if (Array.isArray(node)) return
+        if (Node.hasName(node)) return node.getName() === name
+        if (Node.isIdentifier(node) && node.getText() === name) return node.getParent()
       },
       params: { name },
     })
@@ -207,7 +154,7 @@ export class ast {
     })
   }
 
-  static boolean(value: boolean) {
+  static boolean(value?: boolean) {
     return new Pattern({
       params: { value },
       kind: SyntaxKind.TrueKeyword,
@@ -239,27 +186,130 @@ export class ast {
     })
   }
 
-  static list<TList extends Pattern>(...patterns: TList[]) {
+  /**
+   * Ensure that the node is a tuple of a fixed length with elements matching the given patterns in the same order
+   */
+  static tuple<TList extends Pattern[]>(...patterns: TList) {
     return new Pattern({
       params: { children: patterns },
       kind: SyntaxKind.SyntaxList,
       match: (nodeList) => {
         if (!Array.isArray(nodeList)) return
         if (nodeList.length !== patterns.length) return
-        return nodeList.every((child, index) => patterns[index].matchFn(child))
+        return nodeList.every((child, index) => {
+          return patterns[index].matchFn(child)
+        })
+      },
+    })
+  }
+
+  static enum<TEnum extends Record<string, string | number>>(enumObj: TEnum) {
+    const patterns = Object.entries(enumObj).map(([key, value]) => {
+      return ast.node(SyntaxKind.EnumMember, { name: ast.identifier(key), initializer: ast.literal(value) })
+    })
+
+    return new Pattern({
+      params: { enumObj },
+      kind: SyntaxKind.EnumDeclaration,
+      match: (node) => {
+        if (Array.isArray(node)) return
+        return patterns.some((pattern) => pattern.matchFn(node))
+      },
+    })
+  }
+
+  static union<TList extends Pattern[]>(...patterns: TList) {
+    return new Pattern({
+      params: { patterns },
+      kind: SyntaxKind.UnionType,
+      match: (nodeList) => {
+        return patterns.some((pattern) => pattern.matchFn(nodeList))
+      },
+    })
+  }
+
+  static intersection<TList extends Pattern[]>(...patterns: TList) {
+    return new Pattern({
+      params: { patterns },
+      kind: SyntaxKind.IntersectionType,
+      match: (nodeList) => {
+        return patterns.every((pattern) => pattern.matchFn(nodeList))
+      },
+    })
+  }
+
+  /**
+   * Matches the provided patterns in order, with any number of elements, fallback to matching the remaining elements (rest) using the last pattern
+   * @example ast.arguments(ast.identifier('a'), ast.identifier('b'), ast.rest(ast.number()))
+   * would match `someFn(a, b, 1, 2, 3)`
+   *
+   * @example ast.arguments(ast.rest(ast.number()))
+   * would match `someFn(1, 2, 3)`
+   *
+   * @example ast.callExpression('another', ast.arguments(ast.any()) is equal to ast.callExpression('another')
+   */
+  static arguments<TArr extends Pattern>(...args: TArr[]) {
+    let restPattern: Pattern | undefined
+
+    return new Pattern({
+      params: { args, isRest: true },
+      kind: SyntaxKind.RestType,
+      match: (nodeList) => {
+        if (!Array.isArray(nodeList)) {
+          if (restPattern) {
+            return Boolean(restPattern.matchFn(nodeList))
+          }
+
+          return
+        }
+
+        return nodeList.every((child, index) => {
+          const pattern = args[index] ?? restPattern
+
+          if (pattern) {
+            if (pattern.kind === SyntaxKind.RestType && pattern.params?.isRest) {
+              const rest = pattern.params?.args?.[0]
+              if (rest) {
+                restPattern = rest
+                return rest.matchFn(child)
+              }
+            }
+
+            return pattern.matchFn(child)
+          }
+        })
       },
     })
   }
 
   static object<TProps extends Record<string, Pattern>>(properties?: TProps) {
+    const props = properties
+      ? Object.entries(properties).map(([key, value]) => {
+          return ast.node(SyntaxKind.PropertyAssignment, {
+            name: ast.identifier(key),
+            initializer: value,
+          })
+        })
+      : undefined
+
+    const pattern = ast.node(
+      SyntaxKind.ObjectLiteralExpression,
+      props ? { properties: ast.tuple(...props) } : undefined,
+    )
+
     return new Pattern({
       params: { properties },
       kind: SyntaxKind.ObjectLiteralExpression,
-      match: (node) =>
-        Boolean(!Array.isArray(node) && ast.node(SyntaxKind.ObjectLiteralExpression, properties).matchFn(node)),
+      match: (node) => {
+        if (Array.isArray(node)) return
+        return Boolean(pattern.matchFn(node))
+      },
     })
   }
 
+  /**
+   * Ensure that the node is an array and that each element matches the given pattern, with any number of elements
+   */
   static array<TArr extends Pattern>(pattern: TArr) {
     return new Pattern({
       params: { pattern },
@@ -271,70 +321,81 @@ export class ast {
     })
   }
 
-  static callExpression<TArgs extends Pattern>(name: string, ...args: TArgs[]) {
+  static callExpression<TArgs extends Pattern[]>(name: string, ...args: TArgs) {
+    // if no args are provided, only check for the name
+    // if a rest arg is provided, we need a variable number of arguments
+    // otherwise, let's match the number of arguments exactly using a tuple
+    let _args =
+      args && args.length
+        ? args.some((p) => p.kind === SyntaxKind.RestType && p.params?.isRest)
+          ? ast.arguments(...args)
+          : ast.tuple(...args)
+        : undefined
+
+    const pattern = ast.node(SyntaxKind.CallExpression, {
+      expression: ast.identifier(name),
+      arguments: _args,
+    })
+
     return new Pattern({
       params: { arguments: args },
       kind: SyntaxKind.CallExpression,
       match: (node) => {
         if (Array.isArray(node)) return
-        return Boolean(
-          ast
-            .node(SyntaxKind.CallExpression, {
-              expression: ast.identifier(name),
-              arguments: args && args.length ? ast.list(...args) : undefined,
-            })
-            .matchFn(node),
-        )
+        return Boolean(pattern.matchFn(node))
       },
     })
   }
 
   static propertyAccessExpression(name: string) {
+    const pattern = ast.node(SyntaxKind.PropertyAccessExpression, { name: ast.identifier(name) })
     return new Pattern({
       params: { name },
       kind: SyntaxKind.PropertyAccessExpression,
       match: (node) => {
         if (Array.isArray(node)) return
-        return Boolean(ast.node(SyntaxKind.PropertyAccessExpression, { name: ast.identifier(name) }).matchFn(node))
+        return Boolean(pattern.matchFn(node))
       },
     })
   }
 
   static elementAccessExpression(name: string, arg?: Pattern) {
+    const pattern = ast.node(SyntaxKind.ElementAccessExpression, {
+      expression: ast.identifier(name),
+      argumentExpression: arg,
+    })
+
     return new Pattern({
       params: { name, arg },
       kind: SyntaxKind.ElementAccessExpression,
       match: (node) => {
         if (Array.isArray(node)) return
-        return Boolean(
-          ast
-            .node(SyntaxKind.ElementAccessExpression, { expression: ast.identifier(name), argumentExpression: arg })
-            .matchFn(node),
-        )
+        return Boolean(pattern.matchFn(node))
       },
     })
   }
 
   static templateExpression(head: Pattern, ...patterns: Pattern[]) {
+    const pattern = ast.node(SyntaxKind.TemplateExpression, { head, templateSpans: ast.tuple(...patterns) })
+
     return new Pattern({
       params: { patterns },
       kind: SyntaxKind.TemplateExpression,
       match: (node) => {
         if (Array.isArray(node)) return
-        return Boolean(
-          ast.node(SyntaxKind.TemplateExpression, { head, templateSpans: ast.list(...patterns) }).matchFn(node),
-        )
+        return Boolean(pattern.matchFn(node))
       },
     })
   }
 
   static conditionalExpression(condition: Pattern, whenTrue: Pattern, whenFalse: Pattern) {
+    const pattern = ast.node(SyntaxKind.ConditionalExpression, { condition, whenTrue, whenFalse })
     return new Pattern({
       params: { condition, whenTrue, whenFalse },
       kind: SyntaxKind.ConditionalExpression,
       match: (node) => {
         if (Array.isArray(node)) return
-        return Boolean(ast.node(SyntaxKind.ConditionalExpression, { condition, whenTrue, whenFalse }).matchFn(node))
+        return Boolean(pattern.matchFn(node))
       },
     })
   }
@@ -347,24 +408,51 @@ export class ast {
     const operatorToken = (
       typeof operator === 'string' ? binaryOperators[operator] : operator
     ) as TOperator extends keyof typeof binaryOperators ? (typeof binaryOperators)[TOperator] : TOperator
+    const operatorPattern = ast.kind(operatorToken)
+    const pattern = ast.node(SyntaxKind.BinaryExpression, {
+      left,
+      operatorToken: operatorPattern,
+      right,
+    })
+
     return new Pattern({
       params: { left, operatorToken, right },
       kind: SyntaxKind.BinaryExpression,
       match: (node) => {
         if (Array.isArray(node)) return
-        return Boolean(
-          ast
-            .node(SyntaxKind.BinaryExpression, {
-              left,
-              operatorToken: ast.kind(operatorToken),
-              right,
-            })
-            .matchFn(node),
-        )
+        return Boolean(pattern.matchFn(node))
       },
     })
   }
+
+  static importDeclaration(moduleSpecifier: string, name: string | string[], isTypeOnly?: boolean) {
+    const params: NodeParams<SyntaxKind.ImportClause> = {}
+    if (Array.isArray(name)) {
+      params.namedBindings = ast.node(SyntaxKind.NamedImports, { elements: ast.tuple(...name.map(ast.identifier)) })
+    } else {
+      params.name = ast.identifier(name)
+    }
+
+    if (isNotNullish(isTypeOnly)) params.isTypeOnly = ast.boolean(isTypeOnly)
+
+    const pattern = ast.node(SyntaxKind.ImportDeclaration, {
+      importClause: ast.node(SyntaxKind.ImportClause, params),
+      moduleSpecifier: ast.string(moduleSpecifier),
+    })
+
+    return new Pattern({
+      params: { moduleSpecifier, name, isTypeOnly },
+      kind: SyntaxKind.ImportDeclaration,
+      match: (node) => {
+        if (Array.isArray(node)) return
+        return Boolean(pattern.matchFn(node))
+      },
+    })
+  }
+
+  // TODO resolve identifier declaration, resolve static value, resolve TS type
+  // find unresolvable()
 }
 
-ast.binaryExpression(ast.identifier('a'), ts.SyntaxKind.AmpersandAmpersandToken, ast.identifier('b'))
-ast.binaryExpression(ast.identifier('a'), '&&', ast.identifier('b'))
+// ast.binaryExpression(ast.identifier('a'), ts.SyntaxKind.AmpersandAmpersandToken, ast.identifier('b'))
+// ast.binaryExpression(ast.identifier('a'), '&&', ast.identifier('b'))
