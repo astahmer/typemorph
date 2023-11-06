@@ -188,17 +188,49 @@ export class ast {
 
   /**
    * Ensure that the node is a tuple of a fixed length with elements matching the given patterns in the same order
+   * Unless the last pattern is a rest pattern, in which case the tuple can have any number of elements as long as the first patterns match
    */
   static tuple<TList extends Pattern[]>(...patterns: TList) {
+    const last = patterns[patterns.length - 1]
+    if (last instanceof Pattern && last.params?.isRest) {
+      const restPattern = patterns.pop()?.params?.pattern
+      return new Pattern({
+        params: { patterns, restPattern },
+        kind: SyntaxKind.TupleType,
+        match: (nodeList) => {
+          if (!Array.isArray(nodeList)) return
+          if (nodeList.length < patterns.length) return
+          return nodeList.every((child, index) => {
+            const pattern = patterns[index] ?? restPattern
+            if (!patterns[index]) {
+              return restPattern.matchFn(child)
+            }
+            return pattern.matchFn(child)
+          })
+        },
+      })
+    }
+
     return new Pattern({
       params: { children: patterns },
-      kind: SyntaxKind.SyntaxList,
+      kind: SyntaxKind.TupleType,
       match: (nodeList) => {
         if (!Array.isArray(nodeList)) return
         if (nodeList.length !== patterns.length) return
         return nodeList.every((child, index) => {
           return patterns[index].matchFn(child)
         })
+      },
+    })
+  }
+
+  static rest<TPattern extends Pattern>(pattern: TPattern) {
+    return new Pattern({
+      params: { pattern, isRest: true },
+      kind: SyntaxKind.RestType,
+      match: (nodeList) => {
+        if (!Array.isArray(nodeList)) return
+        return nodeList.every((child) => pattern.matchFn(child))
       },
     })
   }
@@ -248,50 +280,6 @@ export class ast {
     })
   }
 
-  /**
-   * Matches the provided patterns in order, with any number of elements, fallback to matching the remaining elements (rest) using the last pattern
-   * @example ast.arguments(ast.identifier('a'), ast.identifier('b'), ast.rest(ast.number()))
-   * // would match `someFn(a, b, 1, 2, 3)`
-   *
-   * @example ast.arguments(ast.rest(ast.number()))
-   * // would match `someFn(1, 2, 3)`
-   *
-   * @example ast.callExpression('another', ast.arguments(ast.any()) === ast.callExpression('another')
-   */
-  static arguments<TArr extends Pattern>(...args: TArr[]) {
-    let restPattern: Pattern | undefined
-
-    return new Pattern({
-      params: { args, isRest: true },
-      kind: SyntaxKind.RestType,
-      match: (nodeList) => {
-        if (!Array.isArray(nodeList)) {
-          if (restPattern) {
-            return Boolean(restPattern.matchFn(nodeList))
-          }
-
-          return
-        }
-
-        return nodeList.every((child, index) => {
-          const pattern = args[index] ?? restPattern
-
-          if (pattern) {
-            if (pattern.kind === SyntaxKind.RestType && pattern.params?.isRest) {
-              const rest = pattern.params?.args?.[0]
-              if (rest) {
-                restPattern = rest
-                return rest.matchFn(child)
-              }
-            }
-
-            return pattern.matchFn(child)
-          }
-        })
-      },
-    })
-  }
-
   static object<TProps extends Record<string, Pattern>>(properties?: TProps) {
     const props = properties
       ? Object.entries(properties).map(([key, value]) => {
@@ -331,17 +319,8 @@ export class ast {
     })
   }
 
-  static callExpression<TArgs extends Pattern[]>(name: string, ...args: TArgs) {
-    // if no args are provided, only check for the name
-    // if a rest arg is provided, we need a variable number of arguments
-    // otherwise, let's match the number of arguments exactly using a tuple
-    let _args =
-      args && args.length
-        ? args.some((p) => p.kind === SyntaxKind.RestType && p.params?.isRest)
-          ? ast.arguments(...args)
-          : ast.tuple(...args)
-        : undefined
-
+  static callExpression<TArgs extends Pattern>(name: string, ...args: TArgs[]) {
+    const _args = getArguments(...args)
     const pattern = ast.node(SyntaxKind.CallExpression, {
       expression: ast.identifier(name),
       arguments: _args,
@@ -466,3 +445,18 @@ export class ast {
 
 // ast.binaryExpression(ast.identifier('a'), ts.SyntaxKind.AmpersandAmpersandToken, ast.identifier('b'))
 // ast.binaryExpression(ast.identifier('a'), '&&', ast.identifier('b'))
+
+const getArguments = (...args: Pattern[]) => {
+  if (args.length) {
+    if (args.length === 1) {
+      const first = args[0] as Pattern
+      if ([SyntaxKind.TupleType, SyntaxKind.RestType].includes(first.kind)) {
+        return first
+      }
+    }
+
+    return ast.tuple(...args)
+  }
+
+  return
+}

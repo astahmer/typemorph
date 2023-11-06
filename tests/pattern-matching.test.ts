@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { createProject } from './create-project'
 import { SourceFile, ts, Node, Identifier } from 'ts-morph'
 import { Pattern, ast } from '../src/pattern-matching'
@@ -523,9 +523,9 @@ test('ast.union', () => {
     }
   `)
 
-  const withOnlyOneMatch = traverse(sourceFile, ast.union(ast.string('wrong-module'), ast.callExpression('someFn')))
+  const withOneMatch = traverse(sourceFile, ast.union(ast.string('wrong-module'), ast.callExpression('someFn')))
 
-  expect(withOnlyOneMatch).toMatchInlineSnapshot(`
+  expect(withOneMatch).toMatchInlineSnapshot(`
     Pattern<UnionType> {
       "params": {
         "patterns": [
@@ -606,148 +606,268 @@ test('ast.intersection', () => {
   `)
 })
 
+describe('ast.callExpression', () => {
+  test('ast.callExpresion - simple', () => {
+    const code = `
+          someFn()
+          another(1, true, 3, "str")
+          find({ id: 1 })
+      `
 
-test('CallExpression', () => {
-  const code = `
-        someFn()
-        another(1, true, 3, "str")
-        find({ id: 1 })
-    `
+    const sourceFile = parse(code)
 
-  const sourceFile = parse(code)
-
-  expect(traverse(sourceFile, ast.callExpression('someFn'))).toMatchInlineSnapshot(`
-    Pattern<CallExpression> {
-      "params": {
-        "arguments": []
-      },
-      "matchKind": "CallExpression",
-      "text": "someFn()",
-      "line": 2,
-      "column": 1
-    }
-  `)
-
-  expect(traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression, { expression: ast.identifier('someFn') })))
-    .toMatchInlineSnapshot(`
+    expect(traverse(sourceFile, ast.callExpression('someFn'))).toMatchInlineSnapshot(`
       Pattern<CallExpression> {
+        "params": {
+          "arguments": []
+        },
         "matchKind": "CallExpression",
         "text": "someFn()",
         "line": 2,
         "column": 1
       }
     `)
-})
 
-test('CallExpression with params', () => {
-  const code = `
-        someFn()
-        another(1, true, 3, "str")
-        find({ id: 1 })
-    `
+    expect(traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression, { expression: ast.identifier('someFn') })))
+      .toMatchInlineSnapshot(`
+        Pattern<CallExpression> {
+          "matchKind": "CallExpression",
+          "text": "someFn()",
+          "line": 2,
+          "column": 1
+        }
+      `)
+  })
 
-  const sourceFile = parse(code)
-  expect(traverse(sourceFile, ast.callExpression('find', ast.object({ id: ast.any() })))).toMatchInlineSnapshot(
-    `
-    Pattern<CallExpression> {
-      "params": {
-        "arguments": [
-          "ObjectLiteralExpression"
-        ]
-      },
-      "matchKind": "CallExpression",
-      "text": "find({ id: 1 })",
-      "line": 4,
-      "column": 53
-    }
-  `,
-  )
+  test('ast.callExpresion - with params', () => {
+    const code = `
+          someFn()
+          another(1, true, 3, "str")
+          find({ id: 1 })
+      `
 
-  expect(traverse(sourceFile, ast.callExpression('another', ast.any(), ast.boolean(true), ast.number(), ast.any())))
-    .toMatchInlineSnapshot(`
+    const sourceFile = parse(code)
+    expect(traverse(sourceFile, ast.callExpression('find', ast.object({ id: ast.any() })))).toMatchInlineSnapshot(
+      `
       Pattern<CallExpression> {
         "params": {
           "arguments": [
-            "Unknown",
-            "TrueKeyword",
+            "ObjectLiteralExpression"
+          ]
+        },
+        "matchKind": "CallExpression",
+        "text": "find({ id: 1 })",
+        "line": 4,
+        "column": 57
+      }
+    `,
+    )
+  })
+
+  test('ast.callExpresion - with multiple params', () => {
+    const code = `
+          someFn()
+          another(1, true, 3, "str")
+          find({ id: 1 })
+      `
+
+    const sourceFile = parse(code)
+
+    expect(
+      traverse(
+        sourceFile,
+        ast.callExpression('another', ast.tuple(ast.any(), ast.boolean(true), ast.number(), ast.any())),
+      ),
+    ).toMatchInlineSnapshot(`
+      Pattern<CallExpression> {
+        "params": {
+          "arguments": [
+            "TupleType"
+          ]
+        },
+        "matchKind": "CallExpression",
+        "text": "another(1, true, 3, \\"str\\")",
+        "line": 3,
+        "column": 20
+      }
+    `)
+
+    expect(traverse(sourceFile, ast.callExpression('find', ast.tuple(ast.object())))).toMatchInlineSnapshot(`
+      Pattern<CallExpression> {
+        "params": {
+          "arguments": [
+            "TupleType"
+          ]
+        },
+        "matchKind": "CallExpression",
+        "text": "find({ id: 1 })",
+        "line": 4,
+        "column": 57
+      }
+    `)
+  })
+
+  test('ast.callExpresion - with rest param', () => {
+    const code = `
+      someFn()
+      another(1, true, 3, "str")
+      find({ id: 1 })
+  `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.callExpression('another', ast.literal(1)))).toMatchInlineSnapshot('undefined')
+
+    expect(traverse(sourceFile, ast.callExpression('another', ast.literal(1), ast.boolean()))).toMatchInlineSnapshot(
+      'undefined',
+    )
+
+    expect(
+      traverse(sourceFile, ast.callExpression('another', ast.tuple(ast.literal(1), ast.boolean()))),
+    ).toMatchInlineSnapshot('undefined')
+
+    expect(traverse(sourceFile, ast.callExpression('another', ast.tuple(ast.rest(ast.any()))))).toMatchInlineSnapshot(
+      `
+      Pattern<CallExpression> {
+        "params": {
+          "arguments": [
+            "TupleType"
+          ]
+        },
+        "matchKind": "CallExpression",
+        "text": "another(1, true, 3, \\"str\\")",
+        "line": 3,
+        "column": 16
+      }
+    `,
+    )
+
+    expect(
+      traverse(sourceFile, ast.callExpression('another', ast.tuple(ast.literal(1), ast.rest(ast.any())))),
+    ).toMatchInlineSnapshot(
+      `
+      Pattern<CallExpression> {
+        "params": {
+          "arguments": [
+            "TupleType"
+          ]
+        },
+        "matchKind": "CallExpression",
+        "text": "another(1, true, 3, \\"str\\")",
+        "line": 3,
+        "column": 16
+      }
+    `,
+    )
+
+    expect(
+      traverse(
+        sourceFile,
+        ast.callExpression('another', ast.tuple(ast.literal(1), ast.boolean(), ast.rest(ast.any()))),
+      ),
+    ).toMatchInlineSnapshot(
+      `
+      Pattern<CallExpression> {
+        "params": {
+          "arguments": [
+            "TupleType"
+          ]
+        },
+        "matchKind": "CallExpression",
+        "text": "another(1, true, 3, \\"str\\")",
+        "line": 3,
+        "column": 16
+      }
+    `,
+    )
+
+    expect(
+      traverse(sourceFile, ast.callExpression('another', ast.literal(1), ast.boolean(), ast.literal(), ast.any())),
+    ).toMatchInlineSnapshot(
+      `
+      Pattern<CallExpression> {
+        "params": {
+          "arguments": [
             "NumericLiteral",
+            "TrueKeyword",
+            "Unknown",
             "Unknown"
           ]
         },
         "matchKind": "CallExpression",
         "text": "another(1, true, 3, \\"str\\")",
         "line": 3,
-        "column": 18
+        "column": 16
+      }
+    `,
+    )
+  })
+
+  test('CallExpression arguments with rest params', () => {
+    const code = `
+          someFn()
+          another(1, true, 3, "str")
+          find({ id: 1 })
+      `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.callExpression('another'))).toMatchInlineSnapshot(`
+      Pattern<CallExpression> {
+        "params": {
+          "arguments": []
+        },
+        "matchKind": "CallExpression",
+        "text": "another(1, true, 3, \\"str\\")",
+        "line": 3,
+        "column": 20
       }
     `)
-})
-
-test('CallExpression arguments with rest params', () => {
-  const code = `
-        someFn()
-        another(1, true, 3, "str")
-        find({ id: 1 })
-    `
-
-  const sourceFile = parse(code)
-
-  expect(traverse(sourceFile, ast.callExpression('another'))).toMatchInlineSnapshot(`
-    Pattern<CallExpression> {
-      "params": {
-        "arguments": []
-      },
-      "matchKind": "CallExpression",
-      "text": "another(1, true, 3, \\"str\\")",
-      "line": 3,
-      "column": 18
-    }
-  `)
-  expect(traverse(sourceFile, ast.callExpression('another', ast.arguments(ast.any())))).toMatchInlineSnapshot(`
-    Pattern<CallExpression> {
-      "params": {
-        "arguments": [
-          "RestType"
-        ]
-      },
-      "matchKind": "CallExpression",
-      "text": "another(1, true, 3, \\"str\\")",
-      "line": 3,
-      "column": 18
-    }
-  `)
-
-  expect(traverse(sourceFile, ast.callExpression('another', ast.number(), ast.arguments(ast.any()))))
-    .toMatchInlineSnapshot(`
+    expect(traverse(sourceFile, ast.callExpression('another', ast.rest(ast.any())))).toMatchInlineSnapshot(`
       Pattern<CallExpression> {
         "params": {
           "arguments": [
-            "NumericLiteral",
             "RestType"
           ]
         },
         "matchKind": "CallExpression",
         "text": "another(1, true, 3, \\"str\\")",
         "line": 3,
-        "column": 18
+        "column": 20
       }
     `)
 
-  expect(traverse(sourceFile, ast.callExpression('another', ast.number(), ast.boolean(), ast.arguments(ast.any()))))
-    .toMatchInlineSnapshot(`
+    expect(traverse(sourceFile, ast.callExpression('another', ast.tuple(ast.number(), ast.rest(ast.any())))))
+      .toMatchInlineSnapshot(`
+        Pattern<CallExpression> {
+          "params": {
+            "arguments": [
+              "TupleType"
+            ]
+          },
+          "matchKind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 3,
+          "column": 20
+        }
+      `)
+
+    expect(
+      traverse(sourceFile, ast.callExpression('another', ast.tuple(ast.number(), ast.boolean(), ast.rest(ast.any())))),
+    ).toMatchInlineSnapshot(`
       Pattern<CallExpression> {
         "params": {
           "arguments": [
-            "NumericLiteral",
-            "TrueKeyword",
-            "RestType"
+            "TupleType"
           ]
         },
         "matchKind": "CallExpression",
         "text": "another(1, true, 3, \\"str\\")",
         "line": 3,
-        "column": 18
+        "column": 20
       }
     `)
 
-  // expect(traverse(sourceFile, ast.callExpression('another', ast.arguments(ast.any())))).toMatchInlineSnapshot('undefined')
+    // expect(traverse(sourceFile, ast.callExpression('another', ast.rest(ast.any())))).toMatchInlineSnapshot('undefined')
+  })
 })
