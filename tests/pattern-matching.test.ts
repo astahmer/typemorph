@@ -33,7 +33,9 @@ test('ast.node', () => {
   expect(pattern).toMatchInlineSnapshot(`
     Pattern<CallExpression> {
       "matchKind": "CallExpression",
-      "match": "someFn()"
+      "text": "someFn()",
+      "line": 2,
+      "column": 1
     }
   `)
   expect(pattern?.match?.getText()).toMatchInlineSnapshot('"someFn()"')
@@ -52,7 +54,9 @@ test('ast.any', () => {
   expect(pattern).toMatchInlineSnapshot(`
     Pattern<Unknown> {
       "matchKind": "ExpressionStatement",
-      "match": "another(1, true, 3, \\"str\\")"
+      "text": "another(1, true, 3, \\"str\\")",
+      "line": 2,
+      "column": 1
     }
   `)
   expect(pattern?.match?.getText()).toMatchInlineSnapshot('"another(1, true, 3, \\"str\\")"')
@@ -74,7 +78,9 @@ test('ast.when', () => {
   expect(pattern).toMatchInlineSnapshot(`
     Pattern<Unknown> {
       "matchKind": "Identifier",
-      "match": "find"
+      "text": "find",
+      "line": 4,
+      "column": 53
     }
   `)
   expect(pattern?.match?.getText()).toMatchInlineSnapshot('"find"')
@@ -98,7 +104,9 @@ test('ast.named', () => {
         "name": "find"
       },
       "matchKind": "CallExpression",
-      "match": "find({ id: 1 })"
+      "text": "find({ id: 1 })",
+      "line": 6,
+      "column": 88
     }
   `)
   expect(find?.match?.getText()).toMatchInlineSnapshot('"find({ id: 1 })"')
@@ -110,7 +118,9 @@ test('ast.named', () => {
         "name": "xxx"
       },
       "matchKind": "ImportClause",
-      "match": "xxx"
+      "text": "xxx",
+      "line": 2,
+      "column": 1
     }
   `)
 })
@@ -133,7 +143,9 @@ test('ast.identifier', () => {
         "name": "find"
       },
       "matchKind": "Identifier",
-      "match": "find"
+      "text": "find",
+      "line": 6,
+      "column": 88
     }
   `)
 })
@@ -152,7 +164,9 @@ test('ast.literal', () => {
   expect(traverse(sourceFile, ast.literal())).toMatchInlineSnapshot(`
     Pattern<Unknown> {
       "matchKind": "StringLiteral",
-      "match": "\\"some-module\\""
+      "text": "\\"some-module\\"",
+      "line": 2,
+      "column": 1
     }
   `)
   expect(traverse(sourceFile, ast.literal(3))).toMatchInlineSnapshot(`
@@ -161,7 +175,9 @@ test('ast.literal', () => {
         "value": 3
       },
       "matchKind": "NumericLiteral",
-      "match": "3"
+      "text": "3",
+      "line": 4,
+      "column": 36
     }
   `)
   expect(traverse(sourceFile, ast.literal('str'))).toMatchInlineSnapshot(`
@@ -170,7 +186,9 @@ test('ast.literal', () => {
         "value": "str"
       },
       "matchKind": "StringLiteral",
-      "match": "\\"str\\""
+      "text": "\\"str\\"",
+      "line": 4,
+      "column": 36
     }
   `)
   expect(traverse(sourceFile, ast.literal(true))).toMatchInlineSnapshot(`
@@ -179,7 +197,9 @@ test('ast.literal', () => {
         "value": true
       },
       "matchKind": "TrueKeyword",
-      "match": "true"
+      "text": "true",
+      "line": 4,
+      "column": 36
     }
   `)
 })
@@ -202,7 +222,238 @@ test('ast.literal', () => {
         "value": 3
       },
       "matchKind": "NumericLiteral",
-      "match": "3"
+      "text": "3",
+      "line": 4,
+      "column": 36
+    }
+  `)
+})
+
+test('ast.string', () => {
+  const code = `
+    import xxx from "some-module"
+
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+    `
+
+  const sourceFile = parse(code)
+  const first = traverse(sourceFile, ast.string())
+
+  expect(first).toMatchInlineSnapshot(`
+    Pattern<StringLiteral> {
+      "params": {},
+      "matchKind": "StringLiteral",
+      "text": "\\"some-module\\"",
+      "line": 2,
+      "column": 1
+    }
+  `)
+
+  const pattern = traverse(sourceFile, ast.string('str'))
+
+  expect(pattern).toMatchInlineSnapshot(`
+    Pattern<StringLiteral> {
+      "params": {
+        "value": "str"
+      },
+      "matchKind": "StringLiteral",
+      "text": "\\"str\\"",
+      "line": 4,
+      "column": 36
+    }
+  `)
+})
+
+test('ast.number', () => {
+  const code = `
+    import xxx from "some-module"
+
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+    `
+
+  const sourceFile = parse(code)
+  const first = traverse(sourceFile, ast.number())
+
+  expect(first).toMatchInlineSnapshot(`
+    Pattern<NumericLiteral> {
+      "params": {},
+      "matchKind": "NumericLiteral",
+      "text": "1",
+      "line": 4,
+      "column": 36
+    }
+  `)
+  const pattern = traverse(sourceFile, ast.number(3))
+
+  expect(pattern).toMatchInlineSnapshot(`
+    Pattern<NumericLiteral> {
+      "params": {
+        "value": 3
+      },
+      "matchKind": "NumericLiteral",
+      "text": "3",
+      "line": 4,
+      "column": 36
+    }
+  `)
+})
+
+test('ast.boolean', () => {
+  const code = `
+    import xxx from "some-module"
+
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+    `
+
+  const sourceFile = parse(code)
+  const first = traverse(sourceFile, ast.number())
+
+  expect(first).toMatchInlineSnapshot(`
+    Pattern<NumericLiteral> {
+      "params": {},
+      "matchKind": "NumericLiteral",
+      "text": "1",
+      "line": 4,
+      "column": 36
+    }
+  `)
+  const pattern = traverse(sourceFile, ast.number(3))
+
+  expect(pattern).toMatchInlineSnapshot(`
+    Pattern<NumericLiteral> {
+      "params": {
+        "value": 3
+      },
+      "matchKind": "NumericLiteral",
+      "text": "3",
+      "line": 4,
+      "column": 36
+    }
+  `)
+})
+
+test('ast.null', () => {
+  const code = `
+    import xxx from "some-module"
+
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: null })
+    `
+
+  const sourceFile = parse(code)
+  const pattern = traverse(sourceFile, ast.null())
+
+  expect(pattern).toMatchInlineSnapshot(`
+    Pattern<NullKeyword> {
+      "matchKind": "NullKeyword",
+      "text": "null",
+      "line": 6,
+      "column": 88
+    }
+  `)
+})
+
+test('ast.undefined', () => {
+  const code = `
+    import xxx from "some-module"
+
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: undefined })
+    `
+
+  const sourceFile = parse(code)
+  const pattern = traverse(sourceFile, ast.undefined())
+
+  expect(pattern).toMatchInlineSnapshot(`
+    Pattern<UndefinedKeyword> {
+      "matchKind": "Identifier",
+      "text": "undefined",
+      "line": 6,
+      "column": 88
+    }
+  `)
+})
+
+test('ast.tuple', () => {
+  const code = `
+    import xxx from "some-module"
+
+        fn(1, 2, 3, 4, 5)
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: undefined })
+    `
+
+  const sourceFile = parse(code)
+  const pattern = traverse(
+    sourceFile,
+    ast.node(ts.SyntaxKind.CallExpression, {
+      arguments: ast.tuple(ast.number(1), ast.boolean(true), ast.number(3), ast.string('str')),
+    }),
+  )
+
+  expect(pattern).toMatchInlineSnapshot(`
+    Pattern<CallExpression> {
+      "matchKind": "CallExpression",
+      "text": "another(1, true, 3, \\"str\\")",
+      "line": 5,
+      "column": 62
+    }
+  `)
+})
+
+test('ast.enum', () => {
+  const code = `
+    import xxx from "some-module"
+
+    enum SomeEnum {
+      A = "a",
+      B = "b",
+      C = "c",
+    }
+
+    fn(1, 2, 3, 4, 5)
+    another(1, true, 3, "str")
+    someFn()
+    find({ id: undefined })
+    `
+
+  const sourceFile = parse(code)
+  const byName = traverse(sourceFile, ast.enum('SomeEnum'))
+
+  expect(byName).toMatchInlineSnapshot(`
+    Pattern<EnumDeclaration> {
+      "params": {},
+      "matchKind": "EnumDeclaration",
+      "text": "enum SomeEnum {\\n      A = \\"a\\",\\n      B = \\"b\\",\\n      C = \\"c\\",\\n    }",
+      "line": 4,
+      "column": 36
+    }
+  `)
+
+  const pattern = traverse(sourceFile, ast.enum('SomeEnum', { A: 'a', B: 'b', C: 'c' }))
+
+  expect(pattern).toMatchInlineSnapshot(`
+    Pattern<EnumDeclaration> {
+      "params": {
+        "enumObj": {
+          "A": "a",
+          "B": "b",
+          "C": "c"
+        }
+      },
+      "matchKind": "EnumDeclaration",
+      "text": "enum SomeEnum {\\n      A = \\"a\\",\\n      B = \\"b\\",\\n      C = \\"c\\",\\n    }",
+      "line": 4,
+      "column": 36
     }
   `)
 })
@@ -222,7 +473,9 @@ test('CallExpression', () => {
         "arguments": []
       },
       "matchKind": "CallExpression",
-      "match": "someFn()"
+      "text": "someFn()",
+      "line": 2,
+      "column": 1
     }
   `)
 
@@ -230,7 +483,9 @@ test('CallExpression', () => {
     .toMatchInlineSnapshot(`
       Pattern<CallExpression> {
         "matchKind": "CallExpression",
-        "match": "someFn()"
+        "text": "someFn()",
+        "line": 2,
+        "column": 1
       }
     `)
 })
@@ -252,7 +507,9 @@ test('CallExpression with params', () => {
         ]
       },
       "matchKind": "CallExpression",
-      "match": "find({ id: 1 })"
+      "text": "find({ id: 1 })",
+      "line": 4,
+      "column": 53
     }
   `,
   )
@@ -269,7 +526,9 @@ test('CallExpression with params', () => {
           ]
         },
         "matchKind": "CallExpression",
-        "match": "another(1, true, 3, \\"str\\")"
+        "text": "another(1, true, 3, \\"str\\")",
+        "line": 3,
+        "column": 18
       }
     `)
 })
@@ -289,7 +548,9 @@ test('CallExpression arguments with rest params', () => {
         "arguments": []
       },
       "matchKind": "CallExpression",
-      "match": "another(1, true, 3, \\"str\\")"
+      "text": "another(1, true, 3, \\"str\\")",
+      "line": 3,
+      "column": 18
     }
   `)
   expect(traverse(sourceFile, ast.callExpression('another', ast.arguments(ast.any())))).toMatchInlineSnapshot(`
@@ -300,7 +561,9 @@ test('CallExpression arguments with rest params', () => {
         ]
       },
       "matchKind": "CallExpression",
-      "match": "another(1, true, 3, \\"str\\")"
+      "text": "another(1, true, 3, \\"str\\")",
+      "line": 3,
+      "column": 18
     }
   `)
 
@@ -314,7 +577,9 @@ test('CallExpression arguments with rest params', () => {
           ]
         },
         "matchKind": "CallExpression",
-        "match": "another(1, true, 3, \\"str\\")"
+        "text": "another(1, true, 3, \\"str\\")",
+        "line": 3,
+        "column": 18
       }
     `)
 
@@ -329,7 +594,9 @@ test('CallExpression arguments with rest params', () => {
           ]
         },
         "matchKind": "CallExpression",
-        "match": "another(1, true, 3, \\"str\\")"
+        "text": "another(1, true, 3, \\"str\\")",
+        "line": 3,
+        "column": 18
       }
     `)
 

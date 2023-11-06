@@ -203,9 +203,19 @@ export class ast {
     })
   }
 
-  static enum<TEnum extends Record<string, string | number>>(enumObj: TEnum) {
-    const patterns = Object.entries(enumObj).map(([key, value]) => {
-      return ast.node(SyntaxKind.EnumMember, { name: ast.identifier(key), initializer: ast.literal(value) })
+  static enum<TEnum extends Record<string, string | number>>(name: string, enumObj?: TEnum) {
+    const patterns = ast.node(SyntaxKind.EnumDeclaration, {
+      name: ast.identifier(name),
+      members: enumObj
+        ? ast.tuple(
+            ...Object.entries(enumObj).map(([key, value]) => {
+              return ast.node(SyntaxKind.EnumMember, {
+                name: ast.identifier(key),
+                initializer: ast.literal(value),
+              })
+            }),
+          )
+        : undefined,
     })
 
     return new Pattern({
@@ -213,7 +223,7 @@ export class ast {
       kind: SyntaxKind.EnumDeclaration,
       match: (node) => {
         if (Array.isArray(node)) return
-        return patterns.some((pattern) => pattern.matchFn(node))
+        return Boolean(patterns.matchFn(node))
       },
     })
   }

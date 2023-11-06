@@ -20,7 +20,9 @@ expect.addSnapshotSerializer({
             {
               params: value.params,
               matchKind: value.match?.getKindName(),
-              match: value.match?.getText(),
+              text: value.match?.getText(),
+              line: value.match?.getStartLineNumber(),
+              column: value.match?.getStartLinePos(),
             },
             (_key, value) => {
               if (Node.isNode(value)) return value.getKindName()
