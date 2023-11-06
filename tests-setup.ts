@@ -11,26 +11,28 @@ expect.addSnapshotSerializer({
   },
 })
 
-// expect.addSnapshotSerializer({
-//   serialize(value) {
-//     if (!value) return
-//     console.log(value)
-//     return `Pattern<${value.kindName}> ${JSON.stringify(
-//       {
-//         match: value.match?.getKindName(),
-//         // params: Object.entries(value.params ?? {}).map(([key, value]) => [key, value?.getKindName()]),
-//         params: value.params,
-//         text: value.match?.getText(),
-//       },
-//       (_key, value) => {
-//         if (Node.isNode(value)) return value.getKindName()
-//         if (value instanceof Pattern) return value.kindName
-//         return value
-//       },
-//       2,
-//     )}`
-//   },
-//   test(val) {
-//     return val instanceof Pattern
-//   },
-// })
+expect.addSnapshotSerializer({
+  serialize(value) {
+    if (!value) return 'undefined'
+    return `Pattern<${value.kindName}> ${
+      value.match
+        ? JSON.stringify(
+            {
+              params: value.params,
+              matchKind: value.match?.getKindName(),
+              match: value.match?.getText(),
+            },
+            (_key, value) => {
+              if (Node.isNode(value)) return value.getKindName()
+              if (value instanceof Pattern) return value.kindName
+              return value
+            },
+            2,
+          )
+        : 'no match'
+    }`
+  },
+  test(val) {
+    return val instanceof Pattern
+  },
+})
