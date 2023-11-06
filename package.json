@@ -1,0 +1,15 @@
+{
+  "name": "ts-schemast",
+  "version": "0.0.1",
+  "author": "Alexandre Stahmer",
+  "scripts": {
+    "test": "vitest"
+  },
+  "dependencies": {
+    "ts-morph": "^20.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "vitest": "^0.34.6"
+  }
+}
