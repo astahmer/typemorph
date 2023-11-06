@@ -251,12 +251,12 @@ export class ast {
   /**
    * Matches the provided patterns in order, with any number of elements, fallback to matching the remaining elements (rest) using the last pattern
    * @example ast.arguments(ast.identifier('a'), ast.identifier('b'), ast.rest(ast.number()))
-   * would match `someFn(a, b, 1, 2, 3)`
+   * // would match `someFn(a, b, 1, 2, 3)`
    *
    * @example ast.arguments(ast.rest(ast.number()))
-   * would match `someFn(1, 2, 3)`
+   * // would match `someFn(1, 2, 3)`
    *
-   * @example ast.callExpression('another', ast.arguments(ast.any()) is equal to ast.callExpression('another')
+   * @example ast.callExpression('another', ast.arguments(ast.any()) === ast.callExpression('another')
    */
   static arguments<TArr extends Pattern>(...args: TArr[]) {
     let restPattern: Pattern | undefined

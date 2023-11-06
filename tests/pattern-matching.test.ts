@@ -41,6 +41,20 @@ test('ast.node', () => {
   expect(pattern?.match?.getText()).toMatchInlineSnapshot('"someFn()"')
 })
 
+test('ast.node - no match', () => {
+  const code = `
+        someFn()
+        another(1, true, 3, "str")
+        find({ id: 1 })
+    `
+
+  const sourceFile = parse(code)
+  const pattern = traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression, { expression: ast.identifier('xxx') }))
+
+  expect(pattern).toMatchInlineSnapshot('undefined')
+  expect(pattern?.match?.getText()).toMatchInlineSnapshot('undefined')
+})
+
 test('ast.any', () => {
   const code = `
         another(1, true, 3, "str")
@@ -457,6 +471,141 @@ test('ast.enum', () => {
     }
   `)
 })
+
+test('ast.union', () => {
+  const code = `
+    import xxx from "some-module"
+
+    enum SomeEnum {
+      A = "a",
+      B = "b",
+      C = "c",
+    }
+
+    fn(1, 2, 3, 4, 5)
+    another(1, true, 3, "str")
+    someFn()
+    find({ id: undefined })
+    `
+
+  const sourceFile = parse(code)
+  const withModuleFirst = traverse(sourceFile, ast.union(ast.string('some-module'), ast.callExpression('someFn')))
+
+  expect(withModuleFirst).toMatchInlineSnapshot(`
+    Pattern<UnionType> {
+      "params": {
+        "patterns": [
+          "StringLiteral",
+          "CallExpression"
+        ]
+      },
+      "matchKind": "StringLiteral",
+      "text": "\\"some-module\\"",
+      "line": 2,
+      "column": 1
+    }
+  `)
+
+  const withFnFirst = traverse(sourceFile, ast.union(ast.callExpression('someFn'), ast.string('some-module')))
+
+  expect(withFnFirst).toMatchInlineSnapshot(`
+    Pattern<UnionType> {
+      "params": {
+        "patterns": [
+          "CallExpression",
+          "StringLiteral"
+        ]
+      },
+      "matchKind": "StringLiteral",
+      "text": "\\"some-module\\"",
+      "line": 2,
+      "column": 1
+    }
+  `)
+
+  const withOnlyOneMatch = traverse(sourceFile, ast.union(ast.string('wrong-module'), ast.callExpression('someFn')))
+
+  expect(withOnlyOneMatch).toMatchInlineSnapshot(`
+    Pattern<UnionType> {
+      "params": {
+        "patterns": [
+          "StringLiteral",
+          "CallExpression"
+        ]
+      },
+      "matchKind": "CallExpression",
+      "text": "someFn()",
+      "line": 12,
+      "column": 161
+    }
+  `)
+})
+
+test('ast.intersection', () => {
+  const code = `
+    import xxx from "some-module"
+
+    enum SomeEnum {
+      A = "a",
+      B = "b",
+      C = "c",
+    }
+
+    fn(1, 2, 3, 4, 5)
+    another(1, true, 3, "str")
+    someFn()
+    find({ id: undefined })
+    `
+
+  const sourceFile = parse(code)
+
+  const simple = traverse(sourceFile, ast.intersection(ast.node(ts.SyntaxKind.CallExpression), ast.any()))
+  expect(simple).toMatchInlineSnapshot(`
+    Pattern<IntersectionType> {
+      "params": {
+        "patterns": [
+          "CallExpression",
+          "Unknown"
+        ]
+      },
+      "matchKind": "CallExpression",
+      "text": "fn(1, 2, 3, 4, 5)",
+      "line": 10,
+      "column": 108
+    }
+  `)
+
+  const wrong = traverse(sourceFile, ast.intersection(ast.node(ts.SyntaxKind.CallExpression), ast.literal()))
+  expect(wrong).toMatchInlineSnapshot('undefined')
+
+  const pattern = traverse(
+    sourceFile,
+    ast.intersection(
+      ast.node(ts.SyntaxKind.CallExpression),
+      ast.any(),
+      ast.callExpression('someFn'),
+      ast.when((node): node is Node => Node.isCallExpression(node) && node.getArguments().length === 0),
+    ),
+  )
+
+  expect(pattern).toMatchInlineSnapshot(`
+    Pattern<IntersectionType> {
+      "params": {
+        "patterns": [
+          "CallExpression",
+          "Unknown",
+          "CallExpression",
+          "Unknown"
+        ]
+      },
+      "matchKind": "CallExpression",
+      "text": "someFn()",
+      "line": 12,
+      "column": 161
+    }
+  `)
+})
+
 
 test('CallExpression', () => {
   const code = `
