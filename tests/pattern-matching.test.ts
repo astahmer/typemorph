@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { createProject } from './create-project'
-import { SourceFile, ts, Node, Identifier } from 'ts-morph'
+import { SourceFile, ts, Node, Identifier, ObjectLiteralExpression } from 'ts-morph'
 import { Pattern, ast } from '../src/pattern-matching'
 
 const project = createProject()
@@ -98,6 +98,30 @@ test('ast.when', () => {
     }
   `)
   expect(pattern?.match?.getText()).toMatchInlineSnapshot('"find"')
+})
+
+test('ast.refine', () => {
+  const code = `
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+    `
+
+  const sourceFile = parse(code)
+  const pattern = traverse(
+    sourceFile,
+    ast.refine(ast.callExpression('find'), (node) => node.getArguments()[0]),
+  )
+
+  expect(pattern).toMatchInlineSnapshot(`
+    Pattern<CallExpression> {
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ id: 1 }",
+      "line": 4,
+      "column": 53
+    }
+  `)
+  expect(pattern?.match?.getText()).toMatchInlineSnapshot('"{ id: 1 }"')
 })
 
 test('ast.named', () => {

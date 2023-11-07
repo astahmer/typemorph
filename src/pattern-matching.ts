@@ -45,6 +45,8 @@ export type NodeParams<TKind extends SyntaxKind> = {
   [K in ExtractNodeKeys<CompilerNodeOfKind<TKind>>]?: Pattern<TKind, any>
 }
 
+export type PatternNode<TPattern extends Pattern> = TPattern extends Pattern<infer _, infer TMatch> ? TMatch : never
+
 export class ast {
   static kind(syntaxKind: SyntaxKind) {
     return new Pattern({ kind: syntaxKind, match: Node.isNode })
@@ -89,6 +91,20 @@ export class ast {
     return new Pattern<ReturnType<TNode['getKind']>, TNode>({
       kind: SyntaxKind.Unknown as any,
       match: (node) => (Array.isArray(node) ? false : condition(node)),
+    })
+  }
+
+  static refine<TPattern extends Pattern, RNode extends Node>(
+    pattern: TPattern,
+    transform: (node: PatternNode<TPattern>) => RNode | undefined,
+  ) {
+    return new Pattern<ReturnType<RNode['getKind']>, RNode>({
+      kind: pattern.kind as any,
+      match: (node) => {
+        if (Array.isArray(node)) return
+        if (!pattern.matchFn(node)) return
+        return transform(node as PatternNode<TPattern>)
+      },
     })
   }
 
@@ -455,6 +471,14 @@ export class ast {
       match: single(pattern),
     })
   }
+
+  // TODO block + variablestatement + variable declaration + expressionstatement + return
+  // TODO if statement + else statement + else if statement
+  // TODO arrow function / function declaration + parameter
+  // TODO class delcaration + method declaration + new expression
+  // TODO type parameter + type reference + literaltype + indexedaccesstype
+  // TODO as expression + type assertion + non null assertion + parenthesized expression + satisfies expression + prefix unary expression
+  // TODO property assignment + shorthand property assignment + spread assignment
 
   // TODO resolve identifier declaration, resolve static value, resolve TS type
   // find unresolvable()
