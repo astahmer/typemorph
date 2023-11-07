@@ -4,10 +4,8 @@ import { binaryOperators } from './operators'
 import { isLiteral, isStringLike, unwrapExpression } from './ast-utils'
 import { isNotNullish } from './asserts'
 
-type ExtractNodeKeys<T> = Exclude<keyof T, keyof ts.Node | `_${string}`>
-
 type AnyParams = Record<string, any>
-interface PatternOptions<TSyntax extends SyntaxKind, Params> {
+export interface PatternOptions<TSyntax extends SyntaxKind, Params> {
   kind: TSyntax
   match: (node: Node | Node[]) => boolean | Node | Node[] | undefined
   params?: Params
@@ -19,7 +17,7 @@ export class Pattern<
   Params extends AnyParams = AnyParams,
 > {
   kind: SyntaxKind
-  kindName: string
+  kindName: string | undefined
   matchFn: (node: Node | Node[]) => TMatch | undefined
   params: Params
   match?: TMatch | undefined
@@ -39,9 +37,11 @@ export class Pattern<
   }
 }
 
-type NodeOfKind<TKind extends SyntaxKind> = KindToNodeMappings[TKind]
-type CompilerNodeOfKind<TKind extends SyntaxKind> = KindToNodeMappings[TKind]['compilerNode']
-type NodeParams<TKind extends SyntaxKind> = {
+export type NodeOfKind<TKind extends SyntaxKind> = KindToNodeMappings[TKind]
+export type CompilerNodeOfKind<TKind extends SyntaxKind> = KindToNodeMappings[TKind]['compilerNode']
+
+export type ExtractNodeKeys<T> = Exclude<keyof T, keyof ts.Node | `_${string}`>
+export type NodeParams<TKind extends SyntaxKind> = {
   [K in ExtractNodeKeys<CompilerNodeOfKind<TKind>>]?: Pattern<TKind, any>
 }
 
@@ -222,7 +222,9 @@ export class ast {
         if (!Array.isArray(nodeList)) return
         if (nodeList.length !== patterns.length) return
         return nodeList.every((child, index) => {
-          return patterns[index].matchFn(child)
+          const pattern = patterns[index]
+          if (!pattern) return
+          return pattern.matchFn(child)
         })
       },
     })
