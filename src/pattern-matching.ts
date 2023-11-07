@@ -192,6 +192,9 @@ export class ast {
    */
   static tuple<TList extends Pattern[]>(...patterns: TList) {
     const last = patterns[patterns.length - 1]
+
+    // If the last pattern is a rest pattern, remove it from the list and use it as the rest pattern
+    // When the nodeList length has reached the number of patterns, use the rest pattern for the remaining nodes
     if (last instanceof Pattern && last.params?.isRest) {
       const restPattern = patterns.pop()?.params?.pattern
       return new Pattern({
@@ -211,6 +214,7 @@ export class ast {
       })
     }
 
+    // Basic tuple of fixed length
     return new Pattern({
       params: { children: patterns },
       kind: SyntaxKind.TupleType,
@@ -315,12 +319,11 @@ export class ast {
     })
   }
 
-  static callExpression<TArgs extends Pattern>(name: string, ...args: TArgs[]) {
-    // TODO name string|Pattern ?
-    // so we can do ast.callExpression(ast.union(ast.identifier("aaa"), ast.identifier("bbb")), ...)
+  static callExpression<TArgs extends Pattern>(name: NamePattern, ...args: TArgs[]) {
+    const namePattern = getNamePattern(name)
     const _args = getArguments(...args)
     const pattern = ast.node(SyntaxKind.CallExpression, {
-      expression: ast.identifier(name),
+      expression: namePattern,
       arguments: _args,
     })
 
@@ -331,22 +334,30 @@ export class ast {
     })
   }
 
-  static propertyAccessExpression(name: string) {
+  static propertyAccessExpression(name: NamePattern) {
+    const namePattern = getNamePattern(name)
+    const isString = typeof name === 'string'
+
     return new Pattern({
       params: { name },
       kind: SyntaxKind.PropertyAccessExpression,
       match: (node) => {
         if (Array.isArray(node)) return
         if (!Node.isPropertyAccessExpression(node)) return
-        if (node.getText() === name) return true
 
-        const propPath = getPropertyAccessExpressionName(node)
-        return propPath === name
+        if (isString) {
+          if (node.getText() === name) return true
+
+          const propPath = getPropertyAccessExpressionName(node)
+          return propPath === name
+        }
+
+        return namePattern.matchFn(node)
       },
     })
   }
 
-  static elementAccessExpression(name: string | Pattern, arg?: Pattern) {
+  static elementAccessExpression(name: NamePattern, arg?: Pattern) {
     const expression = getNamePattern(name)
     const pattern = ast.node(SyntaxKind.ElementAccessExpression, {
       expression,
@@ -403,24 +414,42 @@ export class ast {
     })
   }
 
-  static importDeclaration(moduleSpecifier: string, name: string | string[], isTypeOnly?: boolean) {
-    const params: NodeParams<SyntaxKind.ImportClause> = {}
-    if (Array.isArray(name)) {
-      params.namedBindings = ast.node(SyntaxKind.NamedImports, { elements: ast.tuple(...name.map(ast.identifier)) })
-    } else {
-      params.name = ast.identifier(name)
-    }
-
-    if (isNotNullish(isTypeOnly)) params.isTypeOnly = ast.boolean(isTypeOnly)
-
+  /**
+   * @example ast.importDeclaration("node:path", "path", true) -> import type * as path from 'path'
+   * @example ast.importDeclaration("node:fs", ["writeFile", "readFile"]) -> import { writeFile, readFile } from 'fs'
+   * @example ast.importDeclaration("node:fs", ast.tuple(ast.importSpecifier("writeFile"), ast.importSpecifier("readFile"))) -> import { writeFile, readFile } from 'fs'
+   * @example ast.importDeclaration("node:fs", ast.rest(ast.any())) -> import { ... } from 'fs'
+   */
+  static importDeclaration(moduleSpecifier: NamePattern, name?: Pattern | string | string[], isTypeOnly?: boolean) {
+    const modPattern = isPattern(moduleSpecifier) ? moduleSpecifier : ast.string(moduleSpecifier)
     const pattern = ast.node(SyntaxKind.ImportDeclaration, {
-      importClause: ast.node(SyntaxKind.ImportClause, params),
-      moduleSpecifier: ast.string(moduleSpecifier),
+      importClause: name ? ast.node(SyntaxKind.ImportClause, createImportClauseParams(name)) : undefined,
+      moduleSpecifier: modPattern,
     })
+    const withTypeOnly = isNotNullish(isTypeOnly)
 
     return new Pattern({
       params: { moduleSpecifier, name, isTypeOnly },
       kind: SyntaxKind.ImportDeclaration,
+      match: (node) => {
+        if (Array.isArray(node)) return
+        if (!Node.isImportDeclaration(node)) return
+        if (withTypeOnly && node.isTypeOnly() !== isTypeOnly) return
+        return pattern.matchFn(node)
+      },
+    })
+  }
+  static importSpecifier(name: NamePattern, propertyName?: NamePattern, isTypeOnly?: boolean) {
+    const namePattern = getNamePattern(name)
+    const pattern = ast.node(SyntaxKind.ImportSpecifier, {
+      name: namePattern,
+      propertyName: propertyName ? getNamePattern(propertyName) : undefined,
+      isTypeOnly: isNotNullish(isTypeOnly) ? ast.boolean(isTypeOnly) : undefined,
+    })
+
+    return new Pattern({
+      params: { name, propertyName, isTypeOnly },
+      kind: SyntaxKind.ImportSpecifier,
       match: single(pattern),
     })
   }
@@ -429,11 +458,13 @@ export class ast {
   // find unresolvable()
 }
 
+const syntaxListKinds = [SyntaxKind.TupleType, SyntaxKind.RestType]
+
 const getArguments = (...args: Pattern[]) => {
   if (args.length) {
     if (args.length === 1) {
       const first = args[0] as Pattern
-      if ([SyntaxKind.TupleType, SyntaxKind.RestType].includes(first.kind)) {
+      if (syntaxListKinds.includes(first.kind)) {
         return first
       }
     }
@@ -481,4 +512,30 @@ const getOperatorPattern = (value: Pattern | keyof typeof binaryOperators | ts.L
   if (isPattern(value)) return value
   if (typeof value === 'string') return ast.kind(binaryOperators[value])
   return ast.kind(value)
+}
+
+/**
+ * @example ast.importDeclaration("node:path", "path")
+ * @example ast.importDeclaration("node:fs", ["writeFile", "readFile"])
+ * @example ast.importDeclaration("node:fs", ast.tuple(ast.importSpecifier("writeFile"), ast.importSpecifier("readFile")))
+ * @example ast.importDeclaration("node:fs", ast.rest(ast.any()))
+ */
+function createImportClauseParams(name: Pattern | string | string[]): NodeParams<SyntaxKind.ImportClause> {
+  if (Array.isArray(name)) {
+    return {
+      namedBindings: ast.node(SyntaxKind.NamedImports, {
+        elements: ast.tuple(...name.map((n) => ast.importSpecifier(n))),
+      }),
+    }
+  }
+
+  if (isPattern(name)) {
+    if (syntaxListKinds.includes(name.kind)) {
+      return { namedBindings: ast.node(SyntaxKind.NamedImports, { elements: name }) }
+    } else {
+      return { name: name }
+    }
+  }
+
+  return { name: ast.identifier(name) }
 }
