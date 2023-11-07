@@ -1,5 +1,5 @@
 {
-  "name": "typed-ast",
+  "name": "typemorph",
   "version": "0.0.1",
   "author": "Alexandre Stahmer",
   "scripts": {

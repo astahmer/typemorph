@@ -1,4 +1,4 @@
-# typed-ast
+# typemorph
 
 ## 0.0.1
 
