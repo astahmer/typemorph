@@ -46,3 +46,32 @@ export const isLiteral = (
 
   return false
 }
+
+export const unwrapExpression = (node: Node): Node => {
+  // Object as any => Object
+  if (Node.isAsExpression(node)) {
+    return unwrapExpression(node.getExpression())
+  }
+
+  // (Object) => Object
+  if (Node.isParenthesizedExpression(node)) {
+    return unwrapExpression(node.getExpression())
+  }
+
+  // "red"! => "red"
+  if (Node.isNonNullExpression(node)) {
+    return unwrapExpression(node.getExpression())
+  }
+
+  // <T>Object => Object
+  if (Node.isTypeAssertion(node)) {
+    return unwrapExpression(node.getExpression())
+  }
+
+  // xxx satisfies yyy -> xxx
+  if (Node.isSatisfiesExpression(node)) {
+    return unwrapExpression(node.getExpression())
+  }
+
+  return node
+}

@@ -321,33 +321,47 @@ test('ast.boolean', () => {
     import xxx from "some-module"
 
         another(1, true, 3, "str")
-        someFn()
+        someFn(false)
         find({ id: 1 })
     `
 
   const sourceFile = parse(code)
-  const first = traverse(sourceFile, ast.number())
+  const first = traverse(sourceFile, ast.boolean())
 
   expect(first).toMatchInlineSnapshot(`
-    Pattern<NumericLiteral> {
+    Pattern<TrueKeyword> {
       "params": {},
-      "matchKind": "NumericLiteral",
-      "text": "1",
+      "matchKind": "TrueKeyword",
+      "text": "true",
       "line": 4,
       "column": 36
     }
   `)
-  const pattern = traverse(sourceFile, ast.number(3))
+  const truthy = traverse(sourceFile, ast.boolean(true))
 
-  expect(pattern).toMatchInlineSnapshot(`
-    Pattern<NumericLiteral> {
+  expect(truthy).toMatchInlineSnapshot(`
+    Pattern<TrueKeyword> {
       "params": {
-        "value": 3
+        "value": true
       },
-      "matchKind": "NumericLiteral",
-      "text": "3",
+      "matchKind": "TrueKeyword",
+      "text": "true",
       "line": 4,
       "column": 36
+    }
+  `)
+
+  const falsy = traverse(sourceFile, ast.boolean(false))
+
+  expect(falsy).toMatchInlineSnapshot(`
+    Pattern<TrueKeyword> {
+      "params": {
+        "value": false
+      },
+      "matchKind": "FalseKeyword",
+      "text": "false",
+      "line": 5,
+      "column": 71
     }
   `)
 })
@@ -867,7 +881,458 @@ describe('ast.callExpression', () => {
         "column": 20
       }
     `)
-
-    // expect(traverse(sourceFile, ast.callExpression('another', ast.rest(ast.any())))).toMatchInlineSnapshot('undefined')
   })
+})
+
+test('ast.list', () => {
+  const code = `
+    import xxx from "some-module"
+
+        another(1, true, 3, "str")
+        someFn(1, 2, 3)
+        one("aaa")
+        str("aaa", "bbb")
+        find({ id: null })
+    `
+
+  const sourceFile = parse(code)
+
+  expect(traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression, { arguments: ast.list(ast.any()) })))
+    .toMatchInlineSnapshot(`
+      Pattern<CallExpression> {
+        "matchKind": "CallExpression",
+        "text": "another(1, true, 3, \\"str\\")",
+        "line": 4,
+        "column": 36
+      }
+    `)
+
+  expect(traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression, { arguments: ast.list(ast.number()) })))
+    .toMatchInlineSnapshot(`
+      Pattern<CallExpression> {
+        "matchKind": "CallExpression",
+        "text": "someFn(1, 2, 3)",
+        "line": 5,
+        "column": 71
+      }
+    `)
+
+  expect(traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression, { arguments: ast.list(ast.string()) })))
+    .toMatchInlineSnapshot(`
+      Pattern<CallExpression> {
+        "matchKind": "CallExpression",
+        "text": "one(\\"aaa\\")",
+        "line": 6,
+        "column": 95
+      }
+    `)
+})
+
+test('ast.object', () => {
+  const code = `
+    import xxx from "some-module"
+
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+        withEmpty({})
+    `
+
+  const sourceFile = parse(code)
+  const first = traverse(sourceFile, ast.object())
+
+  expect(first).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "params": {},
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ id: 1 }",
+      "line": 6,
+      "column": 88
+    }
+  `)
+  const empty = traverse(sourceFile, ast.object({}))
+
+  expect(empty).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "params": {
+        "properties": {}
+      },
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{}",
+      "line": 7,
+      "column": 112
+    }
+  `)
+
+  const pattern = traverse(sourceFile, ast.object({ id: ast.number() }))
+
+  expect(pattern).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "params": {
+        "properties": {
+          "id": "NumericLiteral"
+        }
+      },
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ id: 1 }",
+      "line": 6,
+      "column": 88
+    }
+  `)
+})
+
+test('ast.object', () => {
+  const code = `
+    import xxx from "some-module"
+
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+        withEmpty({})
+        multipleArgs({ prop: "aaa" }, { prop: "bbb" })
+        multipleKeys({ xxx: 999, yyy: 888 })
+    `
+
+  const sourceFile = parse(code)
+  const first = traverse(sourceFile, ast.object())
+
+  expect(first).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "params": {},
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ id: 1 }",
+      "line": 6,
+      "column": 88
+    }
+  `)
+  const empty = traverse(sourceFile, ast.object({}))
+
+  expect(empty).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "params": {
+        "properties": {}
+      },
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{}",
+      "line": 7,
+      "column": 112
+    }
+  `)
+
+  const pattern = traverse(sourceFile, ast.object({ id: ast.number() }))
+
+  expect(pattern).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "params": {
+        "properties": {
+          "id": "NumericLiteral"
+        }
+      },
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ id: 1 }",
+      "line": 6,
+      "column": 88
+    }
+  `)
+
+  expect(traverse(sourceFile, ast.object({ prop: ast.string() }))).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "params": {
+        "properties": {
+          "prop": "StringLiteral"
+        }
+      },
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ prop: \\"aaa\\" }",
+      "line": 8,
+      "column": 134
+    }
+  `)
+
+  expect(traverse(sourceFile, ast.object({ prop: ast.string('bbb') }))).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "params": {
+        "properties": {
+          "prop": "StringLiteral"
+        }
+      },
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ prop: \\"bbb\\" }",
+      "line": 8,
+      "column": 134
+    }
+  `)
+
+  expect(traverse(sourceFile, ast.object({ xxx: ast.union(ast.number(), ast.string()), yyy: ast.any() })))
+    .toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "params": {
+        "properties": {
+          "xxx": "UnionType",
+          "yyy": "Unknown"
+        }
+      },
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ xxx: 999, yyy: 888 }",
+      "line": 9,
+      "column": 189
+    }
+  `)
+})
+
+test('ast.array', () => {
+  const code = `
+    import xxx from "some-module"
+
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+        withEmpty([])
+        multipleArgs(["aaa"], ["bbb"])
+        multipleKeys([999, 888])
+    `
+
+  const sourceFile = parse(code)
+
+  expect(traverse(sourceFile, ast.array())).toMatchInlineSnapshot(`
+    Pattern<ArrayLiteralExpression> {
+      "params": {},
+      "matchKind": "ArrayLiteralExpression",
+      "text": "[]",
+      "line": 7,
+      "column": 112
+    }
+  `)
+
+  expect(traverse(sourceFile, ast.array(ast.any()))).toMatchInlineSnapshot(`
+    Pattern<ArrayLiteralExpression> {
+      "params": {
+        "pattern": "Unknown"
+      },
+      "matchKind": "ArrayLiteralExpression",
+      "text": "[\\"aaa\\"]",
+      "line": 8,
+      "column": 134
+    }
+  `)
+
+  expect(traverse(sourceFile, ast.array(ast.number()))).toMatchInlineSnapshot(`
+    Pattern<ArrayLiteralExpression> {
+      "params": {
+        "pattern": "NumericLiteral"
+      },
+      "matchKind": "ArrayLiteralExpression",
+      "text": "[999, 888]",
+      "line": 9,
+      "column": 173
+    }
+  `)
+
+  expect(traverse(sourceFile, ast.array(ast.string()))).toMatchInlineSnapshot(`
+    Pattern<ArrayLiteralExpression> {
+      "params": {
+        "pattern": "StringLiteral"
+      },
+      "matchKind": "ArrayLiteralExpression",
+      "text": "[\\"aaa\\"]",
+      "line": 8,
+      "column": 134
+    }
+  `)
+
+  expect(traverse(sourceFile, ast.array(ast.string('bbb')))).toMatchInlineSnapshot(`
+    Pattern<ArrayLiteralExpression> {
+      "params": {
+        "pattern": "StringLiteral"
+      },
+      "matchKind": "ArrayLiteralExpression",
+      "text": "[\\"bbb\\"]",
+      "line": 8,
+      "column": 134
+    }
+  `)
+
+  expect(traverse(sourceFile, ast.array(ast.union(ast.number(), ast.string())))).toMatchInlineSnapshot(`
+    Pattern<ArrayLiteralExpression> {
+      "params": {
+        "pattern": "UnionType"
+      },
+      "matchKind": "ArrayLiteralExpression",
+      "text": "[\\"aaa\\"]",
+      "line": 8,
+      "column": 134
+    }
+  `)
+})
+
+describe('ast.propertyAccessExpression', () => {
+  test('using same text', () => {
+    const code = `
+      import xxx from "some-module"
+
+          another(1, true, 3, "str")
+          someFn()
+          find({ id: null })
+          styled.div({ color: "red" })
+          this.props.xxx
+          aaa.bbb.ccc
+          using?.optional?.chaining;
+          ((wrapped?.around! as any)?.multiple as any)?.things
+      `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.propertyAccessExpression('styled.div'))).toMatchInlineSnapshot(`
+      Pattern<PropertyAccessExpression> {
+        "params": {
+          "name": "styled.div"
+        },
+        "matchKind": "PropertyAccessExpression",
+        "text": "styled.div",
+        "line": 7,
+        "column": 123
+      }
+    `)
+
+    expect(traverse(sourceFile, ast.propertyAccessExpression('this.props.xxx'))).toMatchInlineSnapshot(`
+      Pattern<PropertyAccessExpression> {
+        "params": {
+          "name": "this.props.xxx"
+        },
+        "matchKind": "PropertyAccessExpression",
+        "text": "this.props.xxx",
+        "line": 8,
+        "column": 162
+      }
+    `)
+    expect(traverse(sourceFile, ast.propertyAccessExpression('using?.optional?.chaining'))).toMatchInlineSnapshot(
+      `
+      Pattern<PropertyAccessExpression> {
+        "params": {
+          "name": "using?.optional?.chaining"
+        },
+        "matchKind": "PropertyAccessExpression",
+        "text": "using?.optional?.chaining",
+        "line": 10,
+        "column": 209
+      }
+    `,
+    )
+    expect(
+      traverse(sourceFile, ast.propertyAccessExpression('((wrapped?.around! as any)?.multiple as any)?.things')),
+    ).toMatchInlineSnapshot(
+      `
+      Pattern<PropertyAccessExpression> {
+        "params": {
+          "name": "((wrapped?.around! as any)?.multiple as any)?.things"
+        },
+        "matchKind": "PropertyAccessExpression",
+        "text": "((wrapped?.around! as any)?.multiple as any)?.things",
+        "line": 11,
+        "column": 246
+      }
+    `,
+    )
+  })
+
+  test('with dot path', () => {
+    const code = `
+      import xxx from "some-module"
+
+          another(1, true, 3, "str")
+          someFn()
+          find({ id: null })
+          styled.div({ color: "red" })
+          this.props.xxx
+          aaa.bbb.ccc
+          using?.optional?.chaining;
+          ((wrapped?.around! as any)?.multiple as any)?.things
+      `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.propertyAccessExpression('using.optional.chaining'))).toMatchInlineSnapshot(
+      `
+      Pattern<PropertyAccessExpression> {
+        "params": {
+          "name": "using.optional.chaining"
+        },
+        "matchKind": "PropertyAccessExpression",
+        "text": "using?.optional?.chaining",
+        "line": 10,
+        "column": 209
+      }
+    `,
+    )
+    expect(traverse(sourceFile, ast.propertyAccessExpression('wrapped.around.multiple.things'))).toMatchInlineSnapshot(
+      `
+      Pattern<PropertyAccessExpression> {
+        "params": {
+          "name": "wrapped.around.multiple.things"
+        },
+        "matchKind": "PropertyAccessExpression",
+        "text": "((wrapped?.around! as any)?.multiple as any)?.things",
+        "line": 11,
+        "column": 246
+      }
+    `,
+    )
+  })
+})
+
+test('ast.elementAccessExpression', () => {
+  const code = `
+      import xxx from "some-module"
+
+          another(1, true, 3, "str")
+          someFn()
+          find({ id: null })
+          styled["div"]({ color: "red" })
+          this["props"]["xxx"]
+          aaa.bbb["ccc"]
+          using?.["optional"]?.["chaining"];
+          ((wrapped?.["around"]! as any)?.["multiple"] as any)?.["things"]
+      `
+
+  const sourceFile = parse(code)
+
+  expect(traverse(sourceFile, ast.elementAccessExpression('styled', ast.string('div')))).toMatchInlineSnapshot(
+    `
+    Pattern<ElementAccessExpression> {
+      "params": {
+        "name": "styled",
+        "arg": "StringLiteral"
+      },
+      "matchKind": "ElementAccessExpression",
+      "text": "styled[\\"div\\"]",
+      "line": 7,
+      "column": 123
+    }
+  `,
+  )
+  expect(traverse(sourceFile, ast.elementAccessExpression('wrapped', ast.any()))).toMatchInlineSnapshot(`
+    Pattern<ElementAccessExpression> {
+      "params": {
+        "name": "wrapped",
+        "arg": "Unknown"
+      },
+      "matchKind": "ElementAccessExpression",
+      "text": "wrapped?.[\\"around\\"]",
+      "line": 11,
+      "column": 266
+    }
+  `)
+
+  expect(traverse(sourceFile, ast.elementAccessExpression(ast.any(), ast.string('things')))).toMatchInlineSnapshot(`
+    Pattern<ElementAccessExpression> {
+      "params": {
+        "name": "Unknown",
+        "arg": "StringLiteral"
+      },
+      "matchKind": "ElementAccessExpression",
+      "text": "((wrapped?.[\\"around\\"]! as any)?.[\\"multiple\\"] as any)?.[\\"things\\"]",
+      "line": 11,
+      "column": 266
+    }
+  `)
 })

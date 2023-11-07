@@ -1,7 +1,7 @@
 import { Node, SyntaxKind, ts, type KindToNodeMappings } from 'ts-morph'
 import { getSyntaxKindName } from './get-syntax-kind-name'
 import { binaryOperators } from './operators'
-import { isLiteral, isStringLike } from './ast-asserts'
+import { isLiteral, isStringLike, unwrapExpression } from './ast-utils'
 import { isNotNullish } from './asserts'
 
 type ExtractNodeKeys<T> = Exclude<keyof T, keyof ts.Node | `_${string}`>
@@ -137,7 +137,7 @@ export class ast {
       params: { value },
       kind: SyntaxKind.StringLiteral,
       match: (node) => {
-        if (Array.isArray(node)) return false
+        if (Array.isArray(node)) return
         if (isStringLike(node)) return isNotNullish(value) ? node.getLiteralText() === value : true
       },
     })
@@ -148,7 +148,7 @@ export class ast {
       params: { value },
       kind: SyntaxKind.NumericLiteral,
       match: (node) => {
-        if (Array.isArray(node)) return false
+        if (Array.isArray(node)) return
         if (Node.isNumericLiteral(node)) return isNotNullish(value) ? node.getLiteralValue() === value : true
       },
     })
@@ -159,7 +159,7 @@ export class ast {
       params: { value },
       kind: SyntaxKind.TrueKeyword,
       match: (node) => {
-        if (Array.isArray(node)) return false
+        if (Array.isArray(node)) return
         if (Node.isTrueLiteral(node) || Node.isFalseLiteral(node))
           return isNotNullish(value) ? node.getLiteralValue() === value : true
       },
@@ -170,7 +170,7 @@ export class ast {
     return new Pattern({
       kind: SyntaxKind.NullKeyword,
       match: (node) => {
-        if (Array.isArray(node)) return false
+        if (Array.isArray(node)) return
         if (Node.isNullLiteral(node)) return true
       },
     })
@@ -180,7 +180,7 @@ export class ast {
     return new Pattern({
       kind: SyntaxKind.UndefinedKeyword,
       match: (node) => {
-        if (Array.isArray(node)) return false
+        if (Array.isArray(node)) return
         if (Node.isIdentifier(node) && node.getText() === 'undefined') return true
       },
     })
@@ -236,7 +236,7 @@ export class ast {
   }
 
   static enum<TEnum extends Record<string, string | number>>(name: string, enumObj?: TEnum) {
-    const patterns = ast.node(SyntaxKind.EnumDeclaration, {
+    const pattern = ast.node(SyntaxKind.EnumDeclaration, {
       name: ast.identifier(name),
       members: enumObj
         ? ast.tuple(
@@ -253,10 +253,7 @@ export class ast {
     return new Pattern({
       params: { enumObj },
       kind: SyntaxKind.EnumDeclaration,
-      match: (node) => {
-        if (Array.isArray(node)) return
-        return Boolean(patterns.matchFn(node))
-      },
+      match: single(pattern),
     })
   }
 
@@ -298,20 +295,34 @@ export class ast {
     return new Pattern({
       params: { properties },
       kind: SyntaxKind.ObjectLiteralExpression,
+      match: single(pattern),
+    })
+  }
+
+  static array<TArr extends Pattern>(pattern?: TArr) {
+    return new Pattern({
+      params: { pattern },
+      kind: SyntaxKind.ArrayLiteralExpression,
       match: (node) => {
         if (Array.isArray(node)) return
-        return Boolean(pattern.matchFn(node))
+        if (!Node.isArrayLiteralExpression(node)) return
+        if (!pattern) return true
+
+        const elements = node.getElements()
+        if (elements.length === 0) return false
+        return elements.every((child) => pattern.matchFn(child))
       },
     })
   }
 
   /**
-   * Ensure that the node is an array and that each element matches the given pattern, with any number of elements
+   * Ensures that each element of a nodeList matches the given pattern, with any number of elements
+   * TODO remove this ?
    */
-  static array<TArr extends Pattern>(pattern: TArr) {
+  static list<TArr extends Pattern>(pattern: TArr) {
     return new Pattern({
       params: { pattern },
-      kind: SyntaxKind.ArrayLiteralExpression,
+      kind: SyntaxKind.SyntaxList,
       match: (nodeList) => {
         if (!Array.isArray(nodeList)) return
         return nodeList.every((child) => pattern.matchFn(child))
@@ -320,6 +331,8 @@ export class ast {
   }
 
   static callExpression<TArgs extends Pattern>(name: string, ...args: TArgs[]) {
+    // TODO name string|Pattern ?
+    // so we can do ast.callExpression(ast.union(ast.identifier("aaa"), ast.identifier("bbb")), ...)
     const _args = getArguments(...args)
     const pattern = ast.node(SyntaxKind.CallExpression, {
       expression: ast.identifier(name),
@@ -329,37 +342,46 @@ export class ast {
     return new Pattern({
       params: { arguments: args },
       kind: SyntaxKind.CallExpression,
-      match: (node) => {
-        if (Array.isArray(node)) return
-        return Boolean(pattern.matchFn(node))
-      },
+      match: single(pattern),
     })
   }
 
   static propertyAccessExpression(name: string) {
-    const pattern = ast.node(SyntaxKind.PropertyAccessExpression, { name: ast.identifier(name) })
     return new Pattern({
       params: { name },
       kind: SyntaxKind.PropertyAccessExpression,
       match: (node) => {
         if (Array.isArray(node)) return
-        return Boolean(pattern.matchFn(node))
+        if (!Node.isPropertyAccessExpression(node)) return
+        if (node.getText() === name) return true
+
+        const propPath = getPropertyAccessExpressionName(node)
+        return propPath === name
       },
     })
   }
 
-  static elementAccessExpression(name: string, arg?: Pattern) {
+  static elementAccessExpression(name: string | Pattern, arg?: Pattern) {
+    const expression = getNamePattern(name)
     const pattern = ast.node(SyntaxKind.ElementAccessExpression, {
-      expression: ast.identifier(name),
+      expression,
       argumentExpression: arg,
     })
 
     return new Pattern({
       params: { name, arg },
       kind: SyntaxKind.ElementAccessExpression,
+      match: single(pattern),
+    })
+  }
+
+  static unwrap<TPattern extends Pattern>(pattern: TPattern) {
+    return new Pattern({
+      params: { pattern },
+      kind: SyntaxKind.Unknown,
       match: (node) => {
         if (Array.isArray(node)) return
-        return Boolean(pattern.matchFn(node))
+        return pattern.matchFn(unwrapExpression(node))
       },
     })
   }
@@ -370,10 +392,7 @@ export class ast {
     return new Pattern({
       params: { patterns },
       kind: SyntaxKind.TemplateExpression,
-      match: (node) => {
-        if (Array.isArray(node)) return
-        return Boolean(pattern.matchFn(node))
-      },
+      match: single(pattern),
     })
   }
 
@@ -382,10 +401,7 @@ export class ast {
     return new Pattern({
       params: { condition, whenTrue, whenFalse },
       kind: SyntaxKind.ConditionalExpression,
-      match: (node) => {
-        if (Array.isArray(node)) return
-        return Boolean(pattern.matchFn(node))
-      },
+      match: single(pattern),
     })
   }
 
@@ -407,10 +423,7 @@ export class ast {
     return new Pattern({
       params: { left, operatorToken, right },
       kind: SyntaxKind.BinaryExpression,
-      match: (node) => {
-        if (Array.isArray(node)) return
-        return Boolean(pattern.matchFn(node))
-      },
+      match: single(pattern),
     })
   }
 
@@ -432,10 +445,7 @@ export class ast {
     return new Pattern({
       params: { moduleSpecifier, name, isTypeOnly },
       kind: SyntaxKind.ImportDeclaration,
-      match: (node) => {
-        if (Array.isArray(node)) return
-        return Boolean(pattern.matchFn(node))
-      },
+      match: single(pattern),
     })
   }
 
@@ -459,4 +469,37 @@ const getArguments = (...args: Pattern[]) => {
   }
 
   return
+}
+
+const isPattern = (value: any): value is Pattern => value instanceof Pattern
+const single = (pattern: Pattern) => (node: Node | Node[]) => {
+  if (Array.isArray(node)) return
+  return Boolean(pattern.matchFn(node))
+}
+
+type NamePattern = string | Pattern
+const getNamePattern = (value: NamePattern): Pattern => (isPattern(value) ? value : ast.identifier(value))
+
+/**
+ * Returns the string name of a property access expression
+ * It will ignore any expression wrapper and tokens, like: `?` `!` `()` `as`
+ * @example `foo.bar` will match `foo.bar`
+ * @example `foo.bar.baz` will also match `(foo?.bar as any)!.baz`
+ */
+const getPropertyAccessExpressionName = (node: Node): string | undefined => {
+  const names: string[] = []
+
+  let expression = node
+  while (Node.isPropertyAccessExpression(expression)) {
+    names.unshift(expression.getName())
+    expression = unwrapExpression(expression.getExpression())
+  }
+
+  if (!Node.isIdentifier(expression)) {
+    return
+  }
+
+  names.unshift(expression.getText())
+
+  return names.join('.')
 }
