@@ -1,6 +1,6 @@
 {
   "name": "typed-ast",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "author": "Alexandre Stahmer",
   "scripts": {
     "build": "tsup",
@@ -15,5 +15,8 @@
     "tsup": "^7.2.0",
     "typescript": "^5.2.2",
     "vitest": "^0.34.6"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
