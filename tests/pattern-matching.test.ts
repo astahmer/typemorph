@@ -1346,3 +1346,105 @@ test('ast.unwrap', () => {
     }
   `)
 })
+
+test('ast.conditionalExpression', () => {
+  const code = `
+    import xxx from "some-module"
+
+        another(cond ? 1 : 2)
+        nested(cond5 ? (cond6 ? 7 : 8) : 9)
+    `
+
+  const sourceFile = parse(code)
+
+  expect(traverse(sourceFile, ast.conditionalExpression(ast.any(), ast.number(), ast.number()))).toMatchInlineSnapshot(
+    `
+    Pattern<ConditionalExpression> {
+      "params": {
+        "condition": "Unknown",
+        "whenTrue": "NumericLiteral",
+        "whenFalse": "NumericLiteral"
+      },
+      "matchKind": "ConditionalExpression",
+      "text": "cond ? 1 : 2",
+      "line": 4,
+      "column": 36
+    }
+  `,
+  )
+
+  expect(
+    traverse(
+      sourceFile,
+      ast.conditionalExpression(
+        ast.any(),
+        ast.unwrap(ast.conditionalExpression(ast.identifier('cond6'), ast.number(), ast.number(8))),
+        ast.number(9),
+      ),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<ConditionalExpression> {
+      "params": {
+        "condition": "Unknown",
+        "whenTrue": "Unknown",
+        "whenFalse": "NumericLiteral"
+      },
+      "matchKind": "ConditionalExpression",
+      "text": "cond5 ? (cond6 ? 7 : 8) : 9",
+      "line": 5,
+      "column": 66
+    }
+  `)
+})
+
+test('ast.binaryExpression', () => {
+  const code = `
+    import xxx from "some-module"
+
+        someFn(cond2 ?? 3)
+        find(cond3 && 4)
+        getter(cond4 || 5)
+        nested(cond5 && (cond6 ?? 7))
+    `
+
+  const sourceFile = parse(code)
+
+  expect(traverse(sourceFile, ast.binaryExpression(ast.identifier('cond2'), '??', ast.number()))).toMatchInlineSnapshot(
+    `
+    Pattern<BinaryExpression> {
+      "params": {
+        "left": "Identifier",
+        "operatorPattern": "QuestionQuestionToken",
+        "right": "NumericLiteral"
+      },
+      "matchKind": "BinaryExpression",
+      "text": "cond2 ?? 3",
+      "line": 4,
+      "column": 36
+    }
+  `,
+  )
+
+  expect(
+    traverse(
+      sourceFile,
+      ast.binaryExpression(
+        ast.any(),
+        ast.any(),
+        ast.unwrap(ast.binaryExpression(ast.identifier('cond6'), '??', ast.number(7))),
+      ),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<BinaryExpression> {
+      "params": {
+        "left": "Unknown",
+        "operatorPattern": "Unknown",
+        "right": "Unknown"
+      },
+      "matchKind": "BinaryExpression",
+      "text": "cond5 && (cond6 ?? 7)",
+      "line": 7,
+      "column": 115
+    }
+  `)
+})

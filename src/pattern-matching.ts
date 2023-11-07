@@ -375,16 +375,6 @@ export class ast {
     })
   }
 
-  static templateExpression(head: Pattern, ...patterns: Pattern[]) {
-    const pattern = ast.node(SyntaxKind.TemplateExpression, { head, templateSpans: ast.tuple(...patterns) })
-
-    return new Pattern({
-      params: { patterns },
-      kind: SyntaxKind.TemplateExpression,
-      match: single(pattern),
-    })
-  }
-
   static conditionalExpression(condition: Pattern, whenTrue: Pattern, whenFalse: Pattern) {
     const pattern = ast.node(SyntaxKind.ConditionalExpression, { condition, whenTrue, whenFalse })
     return new Pattern({
@@ -396,13 +386,10 @@ export class ast {
 
   static binaryExpression<
     TLeft extends Pattern,
-    TOperator extends keyof typeof binaryOperators | ts.LogicalOperator,
+    TOperator extends Pattern | keyof typeof binaryOperators | ts.LogicalOperator,
     TRight extends Pattern,
   >(left: TLeft, operator: TOperator, right: TRight) {
-    const operatorToken = (
-      typeof operator === 'string' ? binaryOperators[operator] : operator
-    ) as TOperator extends keyof typeof binaryOperators ? (typeof binaryOperators)[TOperator] : TOperator
-    const operatorPattern = ast.kind(operatorToken)
+    const operatorPattern = getOperatorPattern(operator)
     const pattern = ast.node(SyntaxKind.BinaryExpression, {
       left,
       operatorToken: operatorPattern,
@@ -410,7 +397,7 @@ export class ast {
     })
 
     return new Pattern({
-      params: { left, operatorToken, right },
+      params: { left, operatorPattern, right },
       kind: SyntaxKind.BinaryExpression,
       match: single(pattern),
     })
@@ -441,9 +428,6 @@ export class ast {
   // TODO resolve identifier declaration, resolve static value, resolve TS type
   // find unresolvable()
 }
-
-// ast.binaryExpression(ast.identifier('a'), ts.SyntaxKind.AmpersandAmpersandToken, ast.identifier('b'))
-// ast.binaryExpression(ast.identifier('a'), '&&', ast.identifier('b'))
 
 const getArguments = (...args: Pattern[]) => {
   if (args.length) {
@@ -491,4 +475,10 @@ const getPropertyAccessExpressionName = (node: Node): string | undefined => {
   names.unshift(expression.getText())
 
   return names.join('.')
+}
+
+const getOperatorPattern = (value: Pattern | keyof typeof binaryOperators | ts.LogicalOperator) => {
+  if (isPattern(value)) return value
+  if (typeof value === 'string') return ast.kind(binaryOperators[value])
+  return ast.kind(value)
 }
