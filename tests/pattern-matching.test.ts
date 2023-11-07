@@ -884,50 +884,6 @@ describe('ast.callExpression', () => {
   })
 })
 
-test('ast.list', () => {
-  const code = `
-    import xxx from "some-module"
-
-        another(1, true, 3, "str")
-        someFn(1, 2, 3)
-        one("aaa")
-        str("aaa", "bbb")
-        find({ id: null })
-    `
-
-  const sourceFile = parse(code)
-
-  expect(traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression, { arguments: ast.list(ast.any()) })))
-    .toMatchInlineSnapshot(`
-      Pattern<CallExpression> {
-        "matchKind": "CallExpression",
-        "text": "another(1, true, 3, \\"str\\")",
-        "line": 4,
-        "column": 36
-      }
-    `)
-
-  expect(traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression, { arguments: ast.list(ast.number()) })))
-    .toMatchInlineSnapshot(`
-      Pattern<CallExpression> {
-        "matchKind": "CallExpression",
-        "text": "someFn(1, 2, 3)",
-        "line": 5,
-        "column": 71
-      }
-    `)
-
-  expect(traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression, { arguments: ast.list(ast.string()) })))
-    .toMatchInlineSnapshot(`
-      Pattern<CallExpression> {
-        "matchKind": "CallExpression",
-        "text": "one(\\"aaa\\")",
-        "line": 6,
-        "column": 95
-      }
-    `)
-})
-
 test('ast.object', () => {
   const code = `
     import xxx from "some-module"
@@ -1333,6 +1289,60 @@ test('ast.elementAccessExpression', () => {
       "text": "((wrapped?.[\\"around\\"]! as any)?.[\\"multiple\\"] as any)?.[\\"things\\"]",
       "line": 11,
       "column": 266
+    }
+  `)
+})
+
+test('ast.unwrap', () => {
+  const code = `
+    import xxx from "some-module"
+
+        another(1, (true as any), 3, "str")
+        someFn()
+        find(({ id: null }) as any)
+    `
+
+  const sourceFile = parse(code)
+
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(ts.SyntaxKind.CallExpression, {
+        arguments: ast.tuple(ast.number(), ast.boolean(), ast.rest(ast.any())),
+      }),
+    ),
+  ).toMatchInlineSnapshot('undefined')
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(ts.SyntaxKind.CallExpression, {
+        arguments: ast.tuple(ast.number(), ast.unwrap(ast.boolean()), ast.rest(ast.any())),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<CallExpression> {
+      "matchKind": "CallExpression",
+      "text": "another(1, (true as any), 3, \\"str\\")",
+      "line": 4,
+      "column": 36
+    }
+  `)
+
+  expect(traverse(sourceFile, ast.callExpression('find', ast.object({ id: ast.null() })))).toMatchInlineSnapshot(
+    'undefined',
+  )
+  expect(traverse(sourceFile, ast.callExpression('find', ast.unwrap(ast.object({ id: ast.null() })))))
+    .toMatchInlineSnapshot(`
+    Pattern<CallExpression> {
+      "params": {
+        "arguments": [
+          "Unknown"
+        ]
+      },
+      "matchKind": "CallExpression",
+      "text": "find(({ id: null }) as any)",
+      "line": 6,
+      "column": 97
     }
   `)
 })

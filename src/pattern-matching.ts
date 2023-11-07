@@ -315,21 +315,6 @@ export class ast {
     })
   }
 
-  /**
-   * Ensures that each element of a nodeList matches the given pattern, with any number of elements
-   * TODO remove this ?
-   */
-  static list<TArr extends Pattern>(pattern: TArr) {
-    return new Pattern({
-      params: { pattern },
-      kind: SyntaxKind.SyntaxList,
-      match: (nodeList) => {
-        if (!Array.isArray(nodeList)) return
-        return nodeList.every((child) => pattern.matchFn(child))
-      },
-    })
-  }
-
   static callExpression<TArgs extends Pattern>(name: string, ...args: TArgs[]) {
     // TODO name string|Pattern ?
     // so we can do ast.callExpression(ast.union(ast.identifier("aaa"), ast.identifier("bbb")), ...)
@@ -375,6 +360,10 @@ export class ast {
     })
   }
 
+  /**
+   * Unwrap an expression
+   * @example `ast.unwrap(ast.propertyAccessExpression('foo'))` will match `foo` in `(foo.bar) as any`
+   */
   static unwrap<TPattern extends Pattern>(pattern: TPattern) {
     return new Pattern({
       params: { pattern },
