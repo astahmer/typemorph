@@ -1966,3 +1966,161 @@ describe('ast.importDeclaration', () => {
     `)
   })
 })
+
+describe('ast.exportDeclaration', () => {
+  test('with name', () => {
+    const code = `
+      export default xxx
+      export type { yyy }
+      export { aaa, type bbb, ccc as ddd }
+      export * from "./namespaced"
+      `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.exportDeclaration())).toMatchInlineSnapshot(`
+      Pattern<ExportDeclaration> {
+        "params": {},
+        "matchKind": "ExportDeclaration",
+        "text": "export type { yyy }",
+        "line": 3,
+        "column": 26
+      }
+    `)
+
+    expect(traverse(sourceFile, ast.exportDeclaration(['aaa', 'bbb', 'ddd']))).toMatchInlineSnapshot(`
+      Pattern<ExportDeclaration> {
+        "params": {
+          "name": [
+            "aaa",
+            "bbb",
+            "ddd"
+          ]
+        },
+        "matchKind": "ExportDeclaration",
+        "text": "export { aaa, type bbb, ccc as ddd }",
+        "line": 4,
+        "column": 52
+      }
+    `)
+
+    expect(traverse(sourceFile, ast.exportDeclaration(ast.identifier('xxx')))).toMatchInlineSnapshot('undefined')
+  })
+
+  test('is type only', () => {
+    const code = `
+      export default xxx
+      export type { yyy }
+      export { aaa, type bbb, ccc as ddd }
+      export * from "./namespaced"
+      `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.exportDeclaration(['yyy']))).toMatchInlineSnapshot(`
+      Pattern<ExportDeclaration> {
+        "params": {
+          "name": [
+            "yyy"
+          ]
+        },
+        "matchKind": "ExportDeclaration",
+        "text": "export type { yyy }",
+        "line": 3,
+        "column": 26
+      }
+    `)
+    expect(traverse(sourceFile, ast.exportDeclaration(['yyy'], false))).toMatchInlineSnapshot('undefined')
+    expect(traverse(sourceFile, ast.exportDeclaration(['yyy'], true))).toMatchInlineSnapshot(`
+      Pattern<ExportDeclaration> {
+        "params": {
+          "name": [
+            "yyy"
+          ],
+          "isTypeOnly": true
+        },
+        "matchKind": "ExportDeclaration",
+        "text": "export type { yyy }",
+        "line": 3,
+        "column": 26
+      }
+    `)
+
+    expect(traverse(sourceFile, ast.exportDeclaration(ast.any(), true))).toMatchInlineSnapshot(`
+      Pattern<ExportDeclaration> {
+        "params": {
+          "name": "Unknown",
+          "isTypeOnly": true
+        },
+        "matchKind": "ExportDeclaration",
+        "text": "export type { yyy }",
+        "line": 3,
+        "column": 26
+      }
+    `)
+  })
+
+  test('named exports with mixed string and Patterns', () => {
+    const code = `
+    export { aaa, bbb, ccc as ddd }
+    `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.exportDeclaration(['aaa', 'bbb', ast.any()]))).toMatchInlineSnapshot(`
+      Pattern<ExportDeclaration> {
+        "params": {
+          "name": [
+            "aaa",
+            "bbb",
+            "Unknown"
+          ]
+        },
+        "matchKind": "ExportDeclaration",
+        "text": "export { aaa, bbb, ccc as ddd }",
+        "line": 2,
+        "column": 1
+      }
+    `)
+
+    expect(traverse(sourceFile, ast.exportDeclaration(['aaa', 'bbb', ast.identifier('ddd')]))).toMatchInlineSnapshot(`
+      Pattern<ExportDeclaration> {
+        "params": {
+          "name": [
+            "aaa",
+            "bbb",
+            "Identifier"
+          ]
+        },
+        "matchKind": "ExportDeclaration",
+        "text": "export { aaa, bbb, ccc as ddd }",
+        "line": 2,
+        "column": 1
+      }
+    `)
+  })
+
+  test('with module specifier', () => {
+    const code = `
+    export { aaa, bbb, ccc as ddd } from "./mod"
+    `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.exportDeclaration(ast.nodeList(), undefined, './wrong'))).toMatchInlineSnapshot(
+      'undefined',
+    )
+    expect(traverse(sourceFile, ast.exportDeclaration(ast.nodeList(), undefined, './mod'))).toMatchInlineSnapshot(`
+      Pattern<ExportDeclaration> {
+        "params": {
+          "moduleSpecifier": "./mod",
+          "name": "SyntaxList"
+        },
+        "matchKind": "ExportDeclaration",
+        "text": "export { aaa, bbb, ccc as ddd } from \\"./mod\\"",
+        "line": 2,
+        "column": 1
+      }
+    `)
+  })
+})

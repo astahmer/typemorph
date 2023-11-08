@@ -459,6 +459,7 @@ export class ast {
     })
   }
 
+  // TODO import namespace `import * as foo from 'foo'`
   /**
    * @example ast.importDeclaration("node:path", "path", true) -> import type * as path from 'path'
    * @example ast.importDeclaration("node:fs", ["writeFile", "readFile"]) -> import { writeFile, readFile } from 'fs'
@@ -505,6 +506,49 @@ export class ast {
     })
   }
 
+  static exportDeclaration(
+    name?: Pattern | Array<string | Pattern>,
+    isTypeOnly?: boolean,
+    moduleSpecifier?: NamePattern,
+  ) {
+    const pattern = ast.node(SyntaxKind.ExportDeclaration, {
+      exportClause: name ? ast.node(SyntaxKind.NamedExports, createExportClauseParams(name)) : undefined,
+      moduleSpecifier: moduleSpecifier
+        ? isPattern(moduleSpecifier)
+          ? moduleSpecifier
+          : ast.string(moduleSpecifier)
+        : undefined,
+    })
+    const withTypeOnly = isNotNullish(isTypeOnly)
+
+    return new Pattern({
+      params: { moduleSpecifier, name, isTypeOnly },
+      kind: SyntaxKind.ExportDeclaration,
+      match: (node) => {
+        if (Array.isArray(node)) return
+        if (!Node.isExportDeclaration(node)) return
+        if (withTypeOnly && node.isTypeOnly() !== isTypeOnly) return
+        return pattern.matchFn(node)
+      },
+    })
+  }
+
+  static exportSpecifier(name: NamePattern, propertyName?: NamePattern, isTypeOnly?: boolean) {
+    const namePattern = getNamePattern(name)
+    const pattern = ast.node(SyntaxKind.ExportSpecifier, {
+      name: namePattern,
+      propertyName: propertyName ? getNamePattern(propertyName) : undefined,
+      isTypeOnly: isNotNullish(isTypeOnly) ? ast.boolean(isTypeOnly) : undefined,
+    })
+
+    return new Pattern({
+      params: { name, propertyName, isTypeOnly },
+      kind: SyntaxKind.ExportSpecifier,
+      match: single(pattern),
+    })
+  }
+
+  // TODO test import/export name/propertyName
   // TODO block + variablestatement + variable declaration + expressionstatement + return
   // TODO if statement + else statement + else if statement
   // TODO arrow function / function declaration + parameter
@@ -605,4 +649,18 @@ function createImportClauseParams(
   }
 
   return { name: ast.identifier(name) }
+}
+
+function createExportClauseParams(name: Pattern | Array<string | Pattern>): NodeParams<SyntaxKind.NamedExports> {
+  if (Array.isArray(name)) {
+    return {
+      elements: ast.tuple(...name.map((n) => ast.exportSpecifier(n))),
+    }
+  }
+
+  if (syntaxListKinds.includes(name.kind)) {
+    return { elements: name }
+  } else {
+    return { elements: ast.tuple(ast.exportSpecifier(name)) }
+  }
 }
