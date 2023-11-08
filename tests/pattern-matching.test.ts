@@ -1473,172 +1473,204 @@ test('ast.binaryExpression', () => {
   `)
 })
 
-test('ast.importDeclaration', () => {
-  const code = `
-    import xxx from "some-module"
-    import type yyy from "type-module"
-    import { aaa, bbb, ccc } from "with-bindings"
+describe('ast.importDeclaration', () => {
+  test('with name', () => {
+    const code = `
+      import xxx from "some-module"
+      import type yyy from "type-module"
+      import { aaa, bbb, ccc } from "with-bindings"
 
-    another(1, true, 3, "str")
-    someFn()
-    find({ id: 1 })
-    withEmpty({})
-    `
+      another(1, true, 3, "str")
+      someFn()
+      find({ id: 1 })
+      withEmpty({})
+      `
 
-  const sourceFile = parse(code)
+    const sourceFile = parse(code)
 
-  expect(traverse(sourceFile, ast.importDeclaration('some-module'))).toMatchInlineSnapshot(
-    `
-    Pattern<ImportDeclaration> {
-      "params": {
-        "moduleSpecifier": "some-module"
-      },
-      "matchKind": "ImportDeclaration",
-      "text": "import xxx from \\"some-module\\"",
-      "line": 2,
-      "column": 1
-    }
-  `,
-  )
+    expect(traverse(sourceFile, ast.importDeclaration('some-module'))).toMatchInlineSnapshot(
+      `
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "some-module"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import xxx from \\"some-module\\"",
+        "line": 2,
+        "column": 1
+      }
+    `,
+    )
 
-  expect(traverse(sourceFile, ast.importDeclaration('some-module', 'abc'))).toMatchInlineSnapshot('undefined')
-  expect(traverse(sourceFile, ast.importDeclaration('some-module', 'xxx', true))).toMatchInlineSnapshot('undefined')
-  expect(traverse(sourceFile, ast.importDeclaration('some-module', 'xxx'))).toMatchInlineSnapshot(
-    `
-    Pattern<ImportDeclaration> {
-      "params": {
-        "moduleSpecifier": "some-module",
-        "name": "xxx"
-      },
-      "matchKind": "ImportDeclaration",
-      "text": "import xxx from \\"some-module\\"",
-      "line": 2,
-      "column": 1
-    }
-  `,
-  )
+    expect(traverse(sourceFile, ast.importDeclaration('some-module', 'abc'))).toMatchInlineSnapshot('undefined')
+    expect(traverse(sourceFile, ast.importDeclaration('some-module', 'xxx', true))).toMatchInlineSnapshot('undefined')
+    expect(traverse(sourceFile, ast.importDeclaration('some-module', 'xxx'))).toMatchInlineSnapshot(
+      `
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "some-module",
+          "name": "xxx"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import xxx from \\"some-module\\"",
+        "line": 2,
+        "column": 1
+      }
+    `,
+    )
+  })
 
-  expect(traverse(sourceFile, ast.importDeclaration('type-module', 'yyy'))).toMatchInlineSnapshot(
-    `
-    Pattern<ImportDeclaration> {
-      "params": {
-        "moduleSpecifier": "type-module",
-        "name": "yyy"
-      },
-      "matchKind": "ImportDeclaration",
-      "text": "import type yyy from \\"type-module\\"",
-      "line": 3,
-      "column": 35
-    }
-  `,
-  )
-  expect(traverse(sourceFile, ast.importDeclaration('type-module', 'yyy', true))).toMatchInlineSnapshot(
-    `
-    Pattern<ImportDeclaration> {
-      "params": {
-        "moduleSpecifier": "type-module",
-        "name": "yyy",
-        "isTypeOnly": true
-      },
-      "matchKind": "ImportDeclaration",
-      "text": "import type yyy from \\"type-module\\"",
-      "line": 3,
-      "column": 35
-    }
-  `,
-  )
+  test('is type only', () => {
+    const code = `
+      import xxx from "some-module"
+      import type yyy from "type-module"
+      import { aaa, bbb, ccc } from "with-bindings"
 
-  expect(traverse(sourceFile, ast.importDeclaration('type-module', ast.any(), true))).toMatchInlineSnapshot(
-    `
-    Pattern<ImportDeclaration> {
-      "params": {
-        "moduleSpecifier": "type-module",
-        "name": "Unknown",
-        "isTypeOnly": true
-      },
-      "matchKind": "ImportDeclaration",
-      "text": "import type yyy from \\"type-module\\"",
-      "line": 3,
-      "column": 35
-    }
-  `,
-  )
+      another(1, true, 3, "str")
+      someFn()
+      find({ id: 1 })
+      withEmpty({})
+      `
 
-  expect(traverse(sourceFile, ast.importDeclaration('with-bindings'))).toMatchInlineSnapshot(`
-    Pattern<ImportDeclaration> {
-      "params": {
-        "moduleSpecifier": "with-bindings"
-      },
-      "matchKind": "ImportDeclaration",
-      "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
-      "line": 4,
-      "column": 74
-    }
-  `)
+    const sourceFile = parse(code)
 
-  expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ['aaa', 'bbb', 'ccc']))).toMatchInlineSnapshot(`
-    Pattern<ImportDeclaration> {
-      "params": {
-        "moduleSpecifier": "with-bindings",
-        "name": [
-          "aaa",
-          "bbb",
-          "ccc"
-        ]
-      },
-      "matchKind": "ImportDeclaration",
-      "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
-      "line": 4,
-      "column": 74
-    }
-  `)
-  expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ast.rest(ast.any())))).toMatchInlineSnapshot(`
-    Pattern<ImportDeclaration> {
-      "params": {
-        "moduleSpecifier": "with-bindings",
-        "name": "RestType"
-      },
-      "matchKind": "ImportDeclaration",
-      "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
-      "line": 4,
-      "column": 74
-    }
-  `)
-  expect(
-    traverse(
-      sourceFile,
-      ast.importDeclaration(
-        'with-bindings',
-        ast.tuple(ast.importSpecifier('aaa'), ast.importSpecifier('bbb'), ast.importSpecifier('ccc')),
+    expect(traverse(sourceFile, ast.importDeclaration('type-module', 'yyy'))).toMatchInlineSnapshot(
+      `
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "type-module",
+          "name": "yyy"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import type yyy from \\"type-module\\"",
+        "line": 3,
+        "column": 37
+      }
+    `,
+    )
+    expect(traverse(sourceFile, ast.importDeclaration('type-module', 'yyy', true))).toMatchInlineSnapshot(
+      `
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "type-module",
+          "name": "yyy",
+          "isTypeOnly": true
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import type yyy from \\"type-module\\"",
+        "line": 3,
+        "column": 37
+      }
+    `,
+    )
+
+    expect(traverse(sourceFile, ast.importDeclaration('type-module', ast.any(), true))).toMatchInlineSnapshot(
+      `
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "type-module",
+          "name": "Unknown",
+          "isTypeOnly": true
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import type yyy from \\"type-module\\"",
+        "line": 3,
+        "column": 37
+      }
+    `,
+    )
+  })
+
+  test('with named bindings', () => {
+    const code = `
+      import xxx from "some-module"
+      import type yyy from "type-module"
+      import { aaa, bbb, ccc } from "with-bindings"
+
+      another(1, true, 3, "str")
+      someFn()
+      find({ id: 1 })
+      withEmpty({})
+      `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.importDeclaration('with-bindings'))).toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
+        "line": 4,
+        "column": 78
+      }
+    `)
+
+    expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ['aaa', 'bbb', 'ccc']))).toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": [
+            "aaa",
+            "bbb",
+            "ccc"
+          ]
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
+        "line": 4,
+        "column": 78
+      }
+    `)
+    expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ast.rest(ast.any())))).toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": "RestType"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
+        "line": 4,
+        "column": 78
+      }
+    `)
+    expect(
+      traverse(
+        sourceFile,
+        ast.importDeclaration(
+          'with-bindings',
+          ast.tuple(ast.importSpecifier('aaa'), ast.importSpecifier('bbb'), ast.importSpecifier('ccc')),
+        ),
       ),
-    ),
-  ).toMatchInlineSnapshot(`
-    Pattern<ImportDeclaration> {
-      "params": {
-        "moduleSpecifier": "with-bindings",
-        "name": "TupleType"
-      },
-      "matchKind": "ImportDeclaration",
-      "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
-      "line": 4,
-      "column": 74
-    }
-  `)
-  expect(
-    traverse(
-      sourceFile,
-      ast.importDeclaration('with-bindings', ast.tuple(ast.importSpecifier('aaa'), ast.rest(ast.any()))),
-    ),
-  ).toMatchInlineSnapshot(`
-    Pattern<ImportDeclaration> {
-      "params": {
-        "moduleSpecifier": "with-bindings",
-        "name": "TupleType"
-      },
-      "matchKind": "ImportDeclaration",
-      "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
-      "line": 4,
-      "column": 74
-    }
-  `)
+    ).toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": "TupleType"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
+        "line": 4,
+        "column": 78
+      }
+    `)
+    expect(
+      traverse(
+        sourceFile,
+        ast.importDeclaration('with-bindings', ast.tuple(ast.importSpecifier('aaa'), ast.rest(ast.any()))),
+      ),
+    ).toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": "TupleType"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
+        "line": 4,
+        "column": 78
+      }
+    `)
+  })
 })
