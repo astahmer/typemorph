@@ -110,7 +110,7 @@ test('ast.refine', () => {
   const sourceFile = parse(code)
   const pattern = traverse(
     sourceFile,
-    ast.refine(ast.callExpression('find'), (node) => node.getArguments()[0]),
+    ast.refine(ast.callExpression('find'), (node) => (Array.isArray(node) ? undefined : node.getArguments()[0])),
   )
 
   expect(pattern).toMatchInlineSnapshot(`
@@ -1670,6 +1670,298 @@ describe('ast.importDeclaration', () => {
         "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
         "line": 4,
         "column": 78
+      }
+    `)
+  })
+
+  test("with named bindings rename using 'as' keyword", () => {
+    const code = `
+      // import xxx from "some-module"
+      // import type yyy from "type-module"
+      // import { aaa, bbb, ccc as ddd } from "with-bindings"
+      import { aaa, bbb, ccc as ddd } from "with-bindings"
+
+      another(1, true, 3, "str")
+      someFn()
+      find({ id: 1 })
+      withEmpty({})
+      `
+
+    const sourceFile = parse(code)
+
+    expect(
+      traverse(
+        sourceFile,
+        ast.importDeclaration(
+          'with-bindings',
+          ast.tuple(ast.importSpecifier('aaa'), ast.importSpecifier('bbb'), ast.importSpecifier('ddd', 'ccc')),
+        ),
+      ),
+    ).toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": "TupleType"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+        "line": 5,
+        "column": 146
+      }
+    `)
+
+    expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ['aaa', 'bbb', 'ddd']))).toMatchInlineSnapshot(
+      `
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": [
+            "aaa",
+            "bbb",
+            "ddd"
+          ]
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+        "line": 5,
+        "column": 146
+      }
+    `,
+    )
+  })
+
+  test('named bindings with mixed string and Patterns', () => {
+    const code = `
+    import { aaa, bbb, ccc as ddd } from "with-bindings"
+
+    another(1, true, 3, "str")
+    someFn()
+    find({ id: 1 })
+    withEmpty({})
+    `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ['aaa', 'bbb', ast.any()])))
+      .toMatchInlineSnapshot(`
+        Pattern<ImportDeclaration> {
+          "params": {
+            "moduleSpecifier": "with-bindings",
+            "name": [
+              "aaa",
+              "bbb",
+              "Unknown"
+            ]
+          },
+          "matchKind": "ImportDeclaration",
+          "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+          "line": 2,
+          "column": 1
+        }
+      `)
+
+    expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ['aaa', 'bbb', ast.identifier('ddd')])))
+      .toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": [
+            "aaa",
+            "bbb",
+            "Identifier"
+          ]
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+        "line": 2,
+        "column": 1
+      }
+    `)
+  })
+
+  test('combining patterns into a more complex one', () => {
+    const code = `
+      // import xxx from "some-module"
+      // import type yyy from "type-module"
+      // import { aaa, bbb, ccc as ddd } from "with-bindings"
+      import { aaa, bbb, ccc as ddd } from "with-bindings"
+
+      another(1, true, 3, "str")
+      someFn()
+      find({ id: 1 })
+      withEmpty({})
+      `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ast.nodeList(ast.any()))))
+      .toMatchInlineSnapshot(`
+        Pattern<ImportDeclaration> {
+          "params": {
+            "moduleSpecifier": "with-bindings",
+            "name": "SyntaxList"
+          },
+          "matchKind": "ImportDeclaration",
+          "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+          "line": 5,
+          "column": 146
+        }
+      `)
+
+    // Expected, this will match a list with only ONE element
+    expect(
+      traverse(sourceFile, ast.importDeclaration('with-bindings', ast.nodeList(ast.tuple(ast.any())))),
+    ).toMatchInlineSnapshot('undefined')
+
+    // Instead, we can use the ast.rest() as the last (or only) element
+    // to match a list with any number of elements with given pattern
+    expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ast.nodeList(ast.tuple(ast.rest(ast.any()))))))
+      .toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": "SyntaxList"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+        "line": 5,
+        "column": 146
+      }
+    `)
+    expect(
+      traverse(
+        sourceFile,
+        ast.importDeclaration(
+          'with-bindings',
+          ast.nodeList(ast.tuple(ast.identifier('aaa'), ast.identifier('bbb'), ast.rest(ast.any()))),
+        ),
+      ),
+    ).toMatchInlineSnapshot('undefined')
+    expect(
+      traverse(
+        sourceFile,
+        ast.importDeclaration(
+          'with-bindings',
+          ast.nodeList(
+            ast.refine(ast.any(), (list) => {
+              // do stuff
+              return list
+            }),
+          ),
+        ),
+      ),
+    ).toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": "SyntaxList"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+        "line": 5,
+        "column": 146
+      }
+    `)
+    expect(
+      traverse(
+        sourceFile,
+        ast.importDeclaration(
+          'with-bindings',
+          ast.refine(ast.nodeList(), (list) => {
+            // do stuff
+            return list
+          }),
+        ),
+      ),
+    ).toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": "SyntaxList"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+        "line": 5,
+        "column": 146
+      }
+    `)
+
+    const union = ast.union(ast.importSpecifier('aaa'), ast.importSpecifier('ddd'), ast.importSpecifier('bbb'))
+    expect(
+      traverse(
+        sourceFile,
+        ast.importDeclaration(
+          'with-bindings',
+          ast.nodeList(
+            ast.refine(ast.any(), (list) => {
+              if (Array.isArray(list)) {
+                return list.every((item) => union.matchFn(item)) ? list : undefined
+              }
+            }),
+          ),
+        ),
+      ),
+    ).toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": "SyntaxList"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+        "line": 5,
+        "column": 146
+      }
+    `)
+
+    const tuple = ast.tuple(ast.importSpecifier('aaa'), ast.importSpecifier('bbb'), ast.importSpecifier('ddd', 'ccc'))
+    expect(
+      traverse(
+        sourceFile,
+        ast.importDeclaration(
+          'with-bindings',
+          ast.refine(ast.nodeList(), (list) => {
+            if (Array.isArray(list)) {
+              return tuple.matchFn(list)
+            }
+          }),
+        ),
+      ),
+    ).toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": "SyntaxList"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+        "line": 5,
+        "column": 146
+      }
+    `)
+
+    expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ast.nodeList(tuple)))).toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": "SyntaxList"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+        "line": 5,
+        "column": 146
+      }
+    `)
+    expect(traverse(sourceFile, ast.importDeclaration('with-bindings', tuple))).toMatchInlineSnapshot(`
+      Pattern<ImportDeclaration> {
+        "params": {
+          "moduleSpecifier": "with-bindings",
+          "name": "TupleType"
+        },
+        "matchKind": "ImportDeclaration",
+        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+        "line": 5,
+        "column": 146
       }
     `)
   })

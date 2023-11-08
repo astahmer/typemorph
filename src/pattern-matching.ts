@@ -2,7 +2,7 @@ import { Node, SyntaxKind, ts, type KindToNodeMappings } from 'ts-morph'
 import { getSyntaxKindName } from './get-syntax-kind-name'
 import { binaryOperators } from './operators'
 import { isLiteral, isStringLike, unwrapExpression } from './ast-utils'
-import { isNotNullish } from './asserts'
+import { compact, isNotNullish } from './utils'
 
 type AnyParams = Record<string, any>
 export interface PatternOptions<TSyntax extends SyntaxKind, Params> {
@@ -53,32 +53,54 @@ export class ast {
   }
 
   static node<TKind extends SyntaxKind>(type: TKind, props?: NodeParams<TKind>) {
+    const _props = props ? compact(props) : undefined
     return new Pattern({
       kind: type,
       match: (node: Node | Node[]) => {
         if (Array.isArray(node)) return false
         if (!node.isKind(type)) return false
-        if (!props) return true
+        if (!_props) return true
 
-        for (const [key, pattern] of Object.entries(props)) {
-          if (!pattern) continue
+        for (const [key, pattern] of Object.entries(_props)) {
+          if (!pattern) {
+            // console.warn("Pattern doesn't have a value for key", key)
+            continue
+          }
 
           const prop = node.getNodeProperty(key as any)
+          // console.log(1, key)
 
           if (!prop) {
+            // console.warn("Node doesn't have a prop named", key)
             return false
           }
+          // console.log(2, key)
 
           const match = (pattern as Pattern<TKind>).matchFn(prop)
           if (!match) {
-            // console.log(node.getText())
-            // console.log(prop)
-            // console.log({ node: node.getKindName(), key }, pattern)
+            // console.log(0, 'match', {
+            //   prop: prop.constructor?.name,
+            //   txt: node.getText(),
+            //   node: node.getKindName(),
+            //   key,
+            //   pattern,
+            // })
             return false
           }
         }
 
         return true
+      },
+    })
+  }
+
+  static nodeList<TPattern extends Pattern>(pattern?: TPattern) {
+    return new Pattern({
+      params: { pattern },
+      kind: SyntaxKind.SyntaxList as any,
+      match: (nodeList) => {
+        if (!Array.isArray(nodeList)) return
+        return pattern ? pattern.matchFn(nodeList) : true
       },
     })
   }
@@ -96,12 +118,11 @@ export class ast {
 
   static refine<TPattern extends Pattern, RNode extends Node>(
     pattern: TPattern,
-    transform: (node: PatternNode<TPattern>) => RNode | undefined,
+    transform: (nodeOrList: PatternNode<TPattern> | Array<PatternNode<TPattern>>) => RNode | RNode[] | undefined,
   ) {
     return new Pattern<ReturnType<RNode['getKind']>, RNode>({
       kind: pattern.kind as any,
       match: (node) => {
-        if (Array.isArray(node)) return
         if (!pattern.matchFn(node)) return
         return transform(node as PatternNode<TPattern>)
       },
@@ -215,7 +236,7 @@ export class ast {
       const restPattern = patterns.pop()?.params?.pattern
       return new Pattern({
         params: { patterns, restPattern },
-        kind: SyntaxKind.TupleType,
+        kind: SyntaxKind.TupleType as any,
         match: (nodeList) => {
           if (!Array.isArray(nodeList)) return
           if (nodeList.length < patterns.length) return
@@ -246,6 +267,9 @@ export class ast {
     })
   }
 
+  /**
+   * Can be used as the last element of a tuple pattern to match any number of elements of the same type after the previous fixed length patterns
+   */
   static rest<TPattern extends Pattern>(pattern: TPattern) {
     return new Pattern({
       params: { pattern, isRest: true },
@@ -279,12 +303,15 @@ export class ast {
     })
   }
 
+  /**
+   * Returns any node or list that matches any of the given patterns
+   */
   static union<TList extends Pattern[]>(...patterns: TList) {
     return new Pattern({
       params: { patterns },
-      kind: SyntaxKind.UnionType,
-      match: (nodeList) => {
-        return patterns.some((pattern) => pattern.matchFn(nodeList))
+      kind: SyntaxKind.UnionType as any,
+      match: (node) => {
+        return patterns.some((pattern) => pattern.matchFn(node))
       },
     })
   }
@@ -292,7 +319,7 @@ export class ast {
   static intersection<TList extends Pattern[]>(...patterns: TList) {
     return new Pattern({
       params: { patterns },
-      kind: SyntaxKind.IntersectionType,
+      kind: SyntaxKind.IntersectionType as any,
       match: (nodeList) => {
         return patterns.every((pattern) => pattern.matchFn(nodeList))
       },
@@ -438,7 +465,11 @@ export class ast {
    * @example ast.importDeclaration("node:fs", ast.tuple(ast.importSpecifier("writeFile"), ast.importSpecifier("readFile"))) -> import { writeFile, readFile } from 'fs'
    * @example ast.importDeclaration("node:fs", ast.rest(ast.any())) -> import { ... } from 'fs'
    */
-  static importDeclaration(moduleSpecifier: NamePattern, name?: Pattern | string | string[], isTypeOnly?: boolean) {
+  static importDeclaration(
+    moduleSpecifier: NamePattern,
+    name?: Pattern | string | Array<string | Pattern>,
+    isTypeOnly?: boolean,
+  ) {
     const modPattern = isPattern(moduleSpecifier) ? moduleSpecifier : ast.string(moduleSpecifier)
     const pattern = ast.node(SyntaxKind.ImportDeclaration, {
       importClause: name ? ast.node(SyntaxKind.ImportClause, createImportClauseParams(name)) : undefined,
@@ -457,8 +488,10 @@ export class ast {
       },
     })
   }
+
   static importSpecifier(name: NamePattern, propertyName?: NamePattern, isTypeOnly?: boolean) {
     const namePattern = getNamePattern(name)
+
     const pattern = ast.node(SyntaxKind.ImportSpecifier, {
       name: namePattern,
       propertyName: propertyName ? getNamePattern(propertyName) : undefined,
@@ -487,7 +520,7 @@ export class ast {
   // TODO factory -> ast.create(pattern) -> create a node from a pattern (using ts/ts-morph factory)
 }
 
-const syntaxListKinds = [SyntaxKind.TupleType, SyntaxKind.RestType]
+const syntaxListKinds = [SyntaxKind.SyntaxList, SyntaxKind.TupleType, SyntaxKind.RestType]
 
 /**
  * Wrap each given patterns as a tuple, unless there is only one pattern and it is a itself a tuple or a rest pattern
@@ -552,7 +585,9 @@ const getOperatorPattern = (value: Pattern | keyof typeof binaryOperators | ts.L
  * @example ast.importDeclaration("node:fs", ast.tuple(ast.importSpecifier("writeFile"), ast.importSpecifier("readFile")))
  * @example ast.importDeclaration("node:fs", ast.rest(ast.any()))
  */
-function createImportClauseParams(name: Pattern | string | string[]): NodeParams<SyntaxKind.ImportClause> {
+function createImportClauseParams(
+  name: Pattern | string | Array<string | Pattern>,
+): NodeParams<SyntaxKind.ImportClause> {
   if (Array.isArray(name)) {
     return {
       namedBindings: ast.node(SyntaxKind.NamedImports, {
