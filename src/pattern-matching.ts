@@ -62,9 +62,10 @@ export class ast {
         if (!node.isKind(type)) return false
         if (!_props) return true
 
-        for (const [key, pattern] of Object.entries(_props)) {
+        for (const [key, _pattern] of Object.entries(_props)) {
+          const pattern = _pattern as Pattern
           if (!pattern) {
-            // console.warn("Pattern doesn't have a value for key", key)
+            console.warn("Pattern doesn't have a value for key", key)
             continue
           }
 
@@ -72,7 +73,10 @@ export class ast {
           // console.log(1, key)
 
           if (!prop) {
-            // console.warn("Node doesn't have a prop named", key)
+            if (pattern.kind === SyntaxKind.JSDocUnknownType) {
+              return true
+            }
+            // console.warn(`${node.getKindName()} doesn't have a value for key: ${key}\nin: ${node.getText()}`)
             return false
           }
           // console.log(2, key)
@@ -103,6 +107,17 @@ export class ast {
         if (!Array.isArray(nodeList)) return
         return pattern ? pattern.matchFn(nodeList) : true
       },
+    })
+  }
+
+  /**
+   * Allow matching a lack of AST node (node.prop === undefined) or use the given pattern when the node.prop is defined
+   */
+  static maybeNode<TPattern extends Pattern>(pattern?: TPattern) {
+    return new Pattern({
+      params: { pattern },
+      kind: SyntaxKind.JSDocUnknownType as any,
+      match: pattern ? pattern.matchFn : () => true,
     })
   }
 
