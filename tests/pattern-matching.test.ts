@@ -2123,4 +2123,70 @@ describe('ast.exportDeclaration', () => {
       }
     `)
   })
+
+  test('with namespace', () => {
+    const code = `
+    export { aaa } from "./mod"
+    export type * from "./types"
+    export * from "./mod"
+    `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.exportDeclaration(undefined, undefined, './mod'))).toMatchInlineSnapshot(
+      `
+      Pattern<ExportDeclaration> {
+        "params": {
+          "moduleSpecifier": "./mod"
+        },
+        "matchKind": "ExportDeclaration",
+        "text": "export { aaa } from \\"./mod\\"",
+        "line": 2,
+        "column": 1
+      }
+    `,
+    )
+
+    expect(
+      traverse(
+        sourceFile,
+        ast.refine(ast.exportDeclaration(undefined, undefined, './mod'), (node) => {
+          if (Array.isArray(node)) return
+          if (!Node.isExportDeclaration(node)) return undefined
+          return node.isNamespaceExport() ? node : undefined
+        }),
+      ),
+    ).toMatchInlineSnapshot(`
+      Pattern<ExportDeclaration> {
+        "matchKind": "ExportDeclaration",
+        "text": "export * from \\"./mod\\"",
+        "line": 4,
+        "column": 66
+      }
+    `)
+    expect(
+      traverse(
+        sourceFile,
+        ast.refine(
+          ast.node(ts.SyntaxKind.ExportDeclaration, {
+            moduleSpecifier: ast.string('./mod'),
+          }),
+          (node) => {
+            if (Array.isArray(node)) return
+            if (!Node.isExportDeclaration(node)) return undefined
+            if (node.isNamespaceExport()) {
+              return node
+            }
+          },
+        ),
+      ),
+    ).toMatchInlineSnapshot(`
+      Pattern<ExportDeclaration> {
+        "matchKind": "ExportDeclaration",
+        "text": "export * from \\"./mod\\"",
+        "line": 4,
+        "column": 66
+      }
+    `)
+  })
 })

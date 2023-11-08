@@ -49,7 +49,8 @@ export type PatternNode<TPattern extends Pattern> = TPattern extends Pattern<inf
 
 export class ast {
   static kind(syntaxKind: SyntaxKind) {
-    return new Pattern({ kind: syntaxKind, match: Node.isNode })
+    const matcher = Node.is(syntaxKind)
+    return new Pattern({ kind: syntaxKind, match: (node) => (Array.isArray(node) ? undefined : matcher(node)) })
   }
 
   static node<TKind extends SyntaxKind>(type: TKind, props?: NodeParams<TKind>) {
@@ -223,6 +224,7 @@ export class ast {
     })
   }
 
+  // TODO rename to list or fixedList since tuple is a specific type ?
   /**
    * Ensure that the node is a tuple of a fixed length with elements matching the given patterns in the same order
    * Unless the last pattern is a rest pattern, in which case the tuple can have any number of elements as long as the first patterns match
