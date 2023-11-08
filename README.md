@@ -1,4 +1,4 @@
-# TypeMorph Library
+# TypeMorph
 
 TypeMorph is a TypeScript library designed to streamline working with abstract syntax trees (ASTs). With a focus on
 pattern matching, TypeMorph simplifies the process of analyzing and manipulating TypeScript code.
@@ -67,6 +67,11 @@ const flexibleMatcherWithRest = ast.importDeclaration(
   'node:fs',
   ast.rest(ast.any()), // This will match any number of import specifiers in the import.
 )
+
+// would match:
+// `import { readFile } from 'fs'`
+// `import { readFile, writeFile } from 'fs'`
+// `import { type writeFile, createReadStream } from 'fs'`
 ```
 
 ### Example 2: Refining Matchers
@@ -79,6 +84,10 @@ const typeImportMatcher = ast.refine(
     return importDeclarationNode.isTypeOnly() // Returns true if the import is type-only.
   },
 )
+
+// would match:
+// `import type { MyType, MyOtherType } from 'my-module'`
+// `import type { MyType as MyRenamedType } from 'another-module'`
 ```
 
 ### Example 3: Combining Matchers for Complex Patterns
@@ -96,9 +105,33 @@ const functionReturningPromiseOfSpecificTypeMatcher = ast.node(SyntaxKind.Functi
     ),
   }),
 })
+
+// would match:
+// `function myFunction(): Promise<MySpecificType> { ... }`
 ```
 
-For more advanced use-cases, refer to the ~~detailed API documentation provided with the library~~ test folder.
+For more advanced use-cases, refer to the ~~detailed API documentation provided with the library~~
+[test folder](./tests/pattern-matching.test.ts).
+
+## Performance
+
+There's a few simple cases benchmarked in the [pattern-matching.bench.ts](./tests/pattern-matching.bench.ts) file. The
+results are as follows:
+
+```
+  raw traversal - tests/pattern-matching.bench.ts > simple ast.callExpression case
+    1.22x faster than pattern matching
+
+  raw traversal - tests/pattern-matching.bench.ts > simple ast.importDeclaration case
+    1.22x faster than pattern matching
+
+  raw traversal - tests/pattern-matching.bench.ts > simple ast.object case
+    1.03x faster than pattern matching
+
+```
+
+So, it's not as fast as raw traversal, but it's not too far off either. The performance is good enough for most use
+cases especially when you consider the DX benefits of pattern matching over raw traversal.
 
 ## Contributing
 

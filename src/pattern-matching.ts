@@ -482,10 +482,16 @@ export class ast {
 
   // TODO resolve identifier declaration, resolve static value, resolve TS type
   // find unresolvable()
+
+  // TODO ast.from(node) -> create a pattern from a node
+  // TODO factory -> ast.create(pattern) -> create a node from a pattern (using ts/ts-morph factory)
 }
 
 const syntaxListKinds = [SyntaxKind.TupleType, SyntaxKind.RestType]
 
+/**
+ * Wrap each given patterns as a tuple, unless there is only one pattern and it is a itself a tuple or a rest pattern
+ */
 const getArguments = (...args: Pattern[]) => {
   if (args.length) {
     if (args.length === 1) {
