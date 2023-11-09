@@ -544,6 +544,72 @@ test('ast.refine', () => {
   `)
 })
 
+test('ast.maybeNode', () => {
+  const code = `
+        another<OkGeneric>(1, true, 3, "str")
+        someFn()
+        find<NotMatched>({ id: 1 })
+    `
+
+  const sourceFile = parse(code)
+
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(ts.SyntaxKind.CallExpression, {
+        typeArguments: ast.tuple(
+          ast.node(SyntaxKind.TypeReference, {
+            typeName: ast.identifier('OkGeneric'),
+          }),
+        ),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<CallExpression> {
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "another<OkGeneric>(1, true, 3, \\"str\\")",
+          "line": 2,
+          "column": 1
+        }
+      ]
+    }
+  `)
+
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(ts.SyntaxKind.CallExpression, {
+        typeArguments: ast.maybeNode(
+          ast.tuple(
+            ast.node(SyntaxKind.TypeReference, {
+              typeName: ast.identifier('OkGeneric'),
+            }),
+          ),
+        ),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<CallExpression> {
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "another<OkGeneric>(1, true, 3, \\"str\\")",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "CallExpression",
+          "text": "someFn()",
+          "line": 3,
+          "column": 47
+        }
+      ]
+    }
+  `)
+})
+
 test('ast.named', () => {
   const code = `
     import xxx from "some-module"

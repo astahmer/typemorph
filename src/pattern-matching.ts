@@ -41,9 +41,16 @@ export class Pattern<
 
   matchFn(node: Node | Node[]) {
     const result = this.assert(node)
+    // Boolean(result) &&
+    //   console.log(0, 'matchFn', {
+    //     node: Array.isArray(node) ? node.length : node.getKindName(),
+    //     kind: this.kindName,
+    //     result: Boolean(result),
+    //   })
+
     if (result) {
       const match = (Node.isNode(result) ? result : node) as TMatch
-      // console.log(111, this.kindName, { result, isNOde: Node.isNode(result) })
+      // console.log(222, this.kindName, { result, isNOde: Node.isNode(result) })
       this.lastMatch = match
       this.matches.add(match)
       return match
@@ -115,6 +122,7 @@ export class ast {
           // console.log(1, key)
 
           if (!prop) {
+            // special treatment for the `ast.maybeNode` pattern, which can match undefined values
             if (pattern.kind === SyntaxKind.JSDocUnknownType) {
               return true
             }
@@ -122,7 +130,6 @@ export class ast {
             return false
           }
           // console.log(2, key)
-          // console.log(typeof prop, { key, prop })
 
           // For booleans such as `exportAssignment.isExportEquals`, the prop will be a boolean
           // So we cast it to an artificial ts.Node and compare it to the pattern like any other node
@@ -134,14 +141,8 @@ export class ast {
           }
 
           const match = (pattern as Pattern<TKind>).matchFn(prop)
+          // console.log(3, key, Boolean(match))
           if (!match) {
-            // console.log(0, 'match', {
-            //   prop: prop.constructor?.name,
-            //   txt: node.getText(),
-            //   node: node.getKindName(),
-            //   key,
-            //   pattern,
-            // })
             return false
           }
         }
@@ -212,7 +213,9 @@ export class ast {
     return new Pattern({
       params: { pattern },
       kind: SyntaxKind.JSDocUnknownType as any,
-      match: pattern ? pattern.matchFn : () => true,
+      match: (node) => {
+        return pattern ? pattern.matchFn(node) : true
+      },
     })
   }
 
@@ -246,7 +249,6 @@ export class ast {
       match: (node) => {
         if (Array.isArray(node)) return
         if (Node.hasName(node)) return node.getName() === name
-        // TODO isNamed?
         if (Node.isIdentifier(node) && node.getText() === name) return node.getParent()
       },
       params: { name },
