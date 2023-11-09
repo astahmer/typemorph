@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { createProject } from './create-project'
-import { SourceFile, ts, Node, Identifier, ObjectLiteralExpression } from 'ts-morph'
+import { SourceFile, ts, Node, Identifier, ObjectLiteralExpression, SyntaxKind } from 'ts-morph'
 import { Pattern, ast } from '../src/pattern-matching'
 
 const project = createProject()
@@ -115,6 +115,153 @@ test('ast.nodeList', () => {
     Pattern<ObjectLiteralExpression> {
       "matchKind": "ObjectLiteralExpression",
       "text": "{ aaa: 1, bbb: 2 }",
+      "line": 5,
+      "column": 79
+    }
+  `)
+})
+
+test('ast.each - list options', () => {
+  const code = `
+        someFn({})
+        another(1, true, 3, "str")
+        find({ id: 1 })
+        thing({ xxx: 1, yyy: 2, zzz: 3 })
+        thing({ aaa: 1, bbb: 2 })
+    `
+
+  const sourceFile = parse(code)
+
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
+        properties: ast.each(ast.any(), { min: 1 }),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ id: 1 }",
+      "line": 4,
+      "column": 55
+    }
+  `)
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
+        properties: ast.each(ast.any(), { min: 2 }),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ xxx: 1, yyy: 2, zzz: 3 }",
+      "line": 5,
+      "column": 79
+    }
+  `)
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
+        properties: ast.each(ast.any(), { min: 2, max: 2 }),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ aaa: 1, bbb: 2 }",
+      "line": 6,
+      "column": 121
+    }
+  `)
+})
+
+test('ast.each', () => {
+  const code = `
+        someFn({})
+        another(1, true, 3, "str")
+        find({ id: 1 })
+        thing({ xxx: 1, yyy: 2, zzz: 3 })
+        thing({ aaa: 1, bbb: 2 })
+    `
+
+  const sourceFile = parse(code)
+
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
+        properties: ast.each(ast.any()),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{}",
+      "line": 2,
+      "column": 1
+    }
+  `)
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
+        properties: ast.each(ast.node(SyntaxKind.AbstractKeyword), { min: 1 }),
+      }),
+    ),
+  ).toMatchInlineSnapshot('undefined')
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
+        properties: ast.each(ast.node(SyntaxKind.PropertyAssignment), { min: 1 }),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ id: 1 }",
+      "line": 4,
+      "column": 55
+    }
+  `)
+
+  const incompleteUnion = ast.node(SyntaxKind.PropertyAssignment, {
+    name: ast.union(ast.named('xxx')),
+  })
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
+        properties: ast.each(
+          ast.when((node) => {
+            return incompleteUnion.matchFn(node)
+          }),
+          { min: 1 },
+        ),
+      }),
+    ),
+  ).toMatchInlineSnapshot('undefined')
+  const union = ast.node(SyntaxKind.PropertyAssignment, {
+    name: ast.union(ast.named('xxx'), ast.named('yyy'), ast.named('zzz')),
+  })
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
+        properties: ast.each(
+          ast.when((node) => union.matchFn(node)),
+          { min: 1 },
+        ),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<ObjectLiteralExpression> {
+      "matchKind": "ObjectLiteralExpression",
+      "text": "{ xxx: 1, yyy: 2, zzz: 3 }",
       "line": 5,
       "column": 79
     }

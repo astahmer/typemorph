@@ -56,6 +56,11 @@ const booleans = {
     createWrappedNode(ts.factory.createFalse(), { sourceFile: sourceFile.compilerNode }),
 }
 
+interface ListOptions {
+  min?: number
+  max?: number
+}
+
 export class ast {
   static kind(syntaxKind: SyntaxKind) {
     const matcher = Node.is(syntaxKind)
@@ -121,12 +126,16 @@ export class ast {
   /**
    * Matches any list of nodes, optionally matching the list against the given pattern
    */
-  static nodeList<TPattern extends Pattern>(pattern?: TPattern) {
+  static nodeList<TPattern extends Pattern>(pattern?: TPattern, options?: ListOptions) {
+    const _opts = { min: 0, ...options }
+
     return new Pattern({
       params: { pattern },
       kind: SyntaxKind.SyntaxList as any,
       match: (nodeList) => {
         if (!Array.isArray(nodeList)) return
+        if (nodeList.length < _opts.min) return
+        if (_opts.max && nodeList.length > _opts.max) return
         return pattern ? pattern.matchFn(nodeList) : true
       },
     })
@@ -135,13 +144,17 @@ export class ast {
   /**
    * Matches any list of nodes with each node in the list against the given pattern
    */
-  static each<TPattern extends Pattern>(pattern: TPattern) {
+  static each<TPattern extends Pattern>(pattern: TPattern, options?: ListOptions) {
+    const _opts = { min: 0, ...options }
+
     return new Pattern({
       params: { pattern },
       kind: SyntaxKind.SyntaxList as any,
       match: (nodeList) => {
         if (!Array.isArray(nodeList)) return
-        return pattern ? nodeList.every((child) => pattern.matchFn(child)) : true
+        if (nodeList.length < _opts.min) return
+        if (_opts.max && nodeList.length > _opts.max) return
+        return nodeList.every((child) => pattern.matchFn(child))
       },
     })
   }
