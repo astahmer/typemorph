@@ -118,6 +118,9 @@ export class ast {
     })
   }
 
+  /**
+   * Matches any list of nodes, optionally matching the list against the given pattern
+   */
   static nodeList<TPattern extends Pattern>(pattern?: TPattern) {
     return new Pattern({
       params: { pattern },
@@ -125,6 +128,20 @@ export class ast {
       match: (nodeList) => {
         if (!Array.isArray(nodeList)) return
         return pattern ? pattern.matchFn(nodeList) : true
+      },
+    })
+  }
+
+  /**
+   * Matches any list of nodes with each node in the list against the given pattern
+   */
+  static each<TPattern extends Pattern>(pattern: TPattern) {
+    return new Pattern({
+      params: { pattern },
+      kind: SyntaxKind.SyntaxList as any,
+      match: (nodeList) => {
+        if (!Array.isArray(nodeList)) return
+        return pattern ? nodeList.every((child) => pattern.matchFn(child)) : true
       },
     })
   }
@@ -144,16 +161,18 @@ export class ast {
     return new Pattern({ kind: SyntaxKind.Unknown, match: () => true })
   }
 
-  static when<TNode extends Node>(condition: (node: Node) => node is TNode) {
+  static when<TNode extends Node>(condition: (node: Node | Node[]) => boolean | Node | Node[] | undefined) {
     return new Pattern<ReturnType<TNode['getKind']>, TNode>({
       kind: SyntaxKind.Unknown as any,
-      match: (node) => (Array.isArray(node) ? false : condition(node)),
+      match: condition,
     })
   }
 
   static refine<TPattern extends Pattern, RNode extends Node>(
     pattern: TPattern,
-    transform: (nodeOrList: PatternNode<TPattern> | Array<PatternNode<TPattern>>) => RNode | RNode[] | undefined,
+    transform: (
+      nodeOrList: PatternNode<TPattern> | Array<PatternNode<TPattern>>,
+    ) => RNode | RNode[] | boolean | undefined,
   ) {
     return new Pattern<ReturnType<RNode['getKind']>, RNode>({
       kind: pattern.kind as any,
@@ -186,7 +205,7 @@ export class ast {
   }
 
   static literal(value?: string | number | boolean | null | undefined) {
-    if (arguments.length === 0) return ast.when(isLiteral)
+    if (arguments.length === 0) return ast.when((node) => (Array.isArray(node) ? undefined : isLiteral(node)))
 
     const type = typeof value
     switch (typeof value) {
@@ -363,7 +382,7 @@ export class ast {
     })
   }
 
-  static object<TProps extends Record<string, Pattern>>(properties?: TProps) {
+  static object<TProps extends Record<string, Pattern>>(properties?: TProps, isPartial?: boolean) {
     const props = properties
       ? Object.entries(properties).map(([key, value]) => {
           return ast.node(SyntaxKind.PropertyAssignment, {
@@ -373,10 +392,8 @@ export class ast {
         })
       : undefined
 
-    const pattern = ast.node(
-      SyntaxKind.ObjectLiteralExpression,
-      props ? { properties: ast.tuple(...props) } : undefined,
-    )
+    const list = props ? (isPartial ? ast.each(ast.union(...props)) : ast.tuple(...props)) : undefined
+    const pattern = ast.node(SyntaxKind.ObjectLiteralExpression, props ? { properties: list } : undefined)
 
     return new Pattern({
       params: { properties },
