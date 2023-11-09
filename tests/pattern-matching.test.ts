@@ -1779,6 +1779,56 @@ describe('ast.importDeclaration', () => {
     `)
   })
 
+  test('ast.importSpecifier with type only', () => {
+    const code = `
+    import { aaa, type bbb, ccc as ddd } from "with-bindings"
+
+    another(1, true, 3, "str")
+    someFn()
+    find({ id: 1 })
+    withEmpty({})
+    `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.importSpecifier('aaa'))).toMatchInlineSnapshot(`
+      Pattern<ImportSpecifier> {
+        "params": {
+          "name": "aaa"
+        },
+        "matchKind": "ImportSpecifier",
+        "text": "aaa",
+        "line": 2,
+        "column": 1
+      }
+    `)
+    expect(traverse(sourceFile, ast.importSpecifier('aaa', undefined, true))).toMatchInlineSnapshot('undefined')
+    expect(traverse(sourceFile, ast.importSpecifier('aaa', undefined, false))).toMatchInlineSnapshot('undefined')
+    expect(traverse(sourceFile, ast.importSpecifier('bbb'))).toMatchInlineSnapshot(`
+      Pattern<ImportSpecifier> {
+        "params": {
+          "name": "bbb"
+        },
+        "matchKind": "ImportSpecifier",
+        "text": "type bbb",
+        "line": 2,
+        "column": 1
+      }
+    `)
+    expect(traverse(sourceFile, ast.importSpecifier('bbb', undefined, true))).toMatchInlineSnapshot(`
+      Pattern<ImportSpecifier> {
+        "params": {
+          "name": "bbb",
+          "isTypeOnly": true
+        },
+        "matchKind": "ImportSpecifier",
+        "text": "type bbb",
+        "line": 2,
+        "column": 1
+      }
+    `)
+  })
+
   test('with namespace', () => {
     const code = `
     import { aaa } from "./mod"
@@ -2205,7 +2255,7 @@ describe('ast.exportDeclaration', () => {
     `)
   })
 
-  test.only('with namespace', () => {
+  test('with namespace', () => {
     const code = `
     // export { aaa } from "./mod"
     export type * from "./types"
@@ -2286,4 +2336,42 @@ describe('ast.exportDeclaration', () => {
       }
     `)
   })
+})
+
+test('ast.exportAssignment', () => {
+  const code = `
+  export { aaa, type bbb, renamed as ccc }
+  export default xxx;
+  export = yyy;
+  export type zzz;
+    `
+
+  const sourceFile = parse(code)
+
+  expect(traverse(sourceFile, ast.exportAssignment(ast.identifier('xxx')))).toMatchInlineSnapshot(`
+    Pattern<ExportAssignment> {
+      "params": {
+        "expression": "Identifier"
+      },
+      "matchKind": "ExportAssignment",
+      "text": "export default xxx;",
+      "line": 3,
+      "column": 44
+    }
+  `)
+  expect(traverse(sourceFile, ast.exportAssignment(ast.identifier('xxx'), true))).toMatchInlineSnapshot('undefined')
+
+  expect(traverse(sourceFile, ast.exportAssignment(ast.identifier('yyy'), false))).toMatchInlineSnapshot('undefined')
+  expect(traverse(sourceFile, ast.exportAssignment(ast.identifier('yyy'), true))).toMatchInlineSnapshot(`
+    Pattern<ExportAssignment> {
+      "params": {
+        "expression": "Identifier",
+        "isExportEquals": true
+      },
+      "matchKind": "ExportAssignment",
+      "text": "export = yyy;",
+      "line": 4,
+      "column": 66
+    }
+  `)
 })

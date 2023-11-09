@@ -1,4 +1,4 @@
-import { Node, SyntaxKind, ts, type KindToNodeMappings } from 'ts-morph'
+import { Node, SyntaxKind, ts, type KindToNodeMappings, createWrappedNode, SourceFile } from 'ts-morph'
 import { getSyntaxKindName } from './get-syntax-kind-name'
 import { binaryOperators } from './operators'
 import { isLiteral, isStringLike, unwrapExpression } from './ast-utils'
@@ -18,22 +18,25 @@ export class Pattern<
 > {
   kind: SyntaxKind
   kindName: string | undefined
-  matchFn: (node: Node | Node[]) => TMatch | undefined
+  private assert: (node: Node | Node[]) => boolean | Node | Node[] | undefined
   params: Params
   match?: TMatch | undefined
 
   constructor({ kind, match: assert, params }: PatternOptions<TSyntax, Params>) {
     this.kind = kind
     this.kindName = getSyntaxKindName(kind)
-    this.matchFn = (node) => {
-      const result = assert(node)
-      if (result) {
-        const match = Node.isNode(result) ? result : node
-        this.match = match as TMatch
-        return match as TMatch
-      }
-    }
+    this.assert = assert
     this.params = params as Params
+  }
+
+  matchFn(node: Node | Node[]) {
+    const result = this.assert(node)
+    if (result) {
+      const match = Node.isNode(result) ? result : node
+      // console.log(111, this.kindName, { result, isNOde: Node.isNode(result) })
+      this.match = match as TMatch
+      return match as TMatch
+    }
   }
 }
 
@@ -46,6 +49,12 @@ export type NodeParams<TKind extends SyntaxKind> = {
 }
 
 export type PatternNode<TPattern extends Pattern> = TPattern extends Pattern<infer _, infer TMatch> ? TMatch : never
+
+const booleans = {
+  true: (sourceFile: SourceFile) => createWrappedNode(ts.factory.createTrue(), { sourceFile: sourceFile.compilerNode }),
+  false: (sourceFile: SourceFile) =>
+    createWrappedNode(ts.factory.createFalse(), { sourceFile: sourceFile.compilerNode }),
+}
 
 export class ast {
   static kind(syntaxKind: SyntaxKind) {
@@ -69,7 +78,7 @@ export class ast {
             continue
           }
 
-          const prop = node.getNodeProperty(key as any)
+          let prop = node.getNodeProperty(key as any)
           // console.log(1, key)
 
           if (!prop) {
@@ -80,6 +89,16 @@ export class ast {
             return false
           }
           // console.log(2, key)
+          // console.log(typeof prop, { key, prop })
+
+          // For booleans such as `exportAssignment.isExportEquals`, the prop will be a boolean
+          // So we cast it to an artificial ts.Node and compare it to the pattern like any other node
+          // not ideal, not that bad either I guess ? it keeps the pattern matching API consistent
+          // e.g `ast.exportAssignment(xxx, ast.boolean(true))` will match `export = true`
+          // and I don't need to think twice about if I should use `ast.boolean(true)` or `true`
+          if (typeof prop === 'boolean') {
+            prop = booleans[prop ? 'true' : 'false'](node.getSourceFile())
+          }
 
           const match = (pattern as Pattern<TKind>).matchFn(prop)
           if (!match) {
@@ -151,6 +170,7 @@ export class ast {
       match: (node) => {
         if (Array.isArray(node)) return
         if (Node.hasName(node)) return node.getName() === name
+        // TODO isNamed?
         if (Node.isIdentifier(node) && node.getText() === name) return node.getParent()
       },
       params: { name },
@@ -565,7 +585,18 @@ export class ast {
     })
   }
 
-  // TODO test import/export name/propertyName
+  static exportAssignment(expression: Pattern, isExportEquals?: boolean) {
+    const pattern = ast.node(SyntaxKind.ExportAssignment, {
+      expression,
+      isExportEquals: isNotNullish(isExportEquals) ? ast.boolean(isExportEquals) : undefined,
+    })
+    return new Pattern({
+      params: { expression, isExportEquals },
+      kind: SyntaxKind.ExportAssignment,
+      match: single(pattern),
+    })
+  }
+
   // TODO block + variablestatement + variable declaration + expressionstatement + return
   // TODO if statement + else statement + else if statement
   // TODO arrow function / function declaration + parameter
@@ -609,6 +640,9 @@ const single = (pattern: Pattern) => (node: Node | Node[]) => {
 
 type NamePattern = string | Pattern
 const getNamePattern = (value: NamePattern): Pattern => (isPattern(value) ? value : ast.identifier(value))
+
+// type BoolPattern = boolean | Pattern
+// const getBoolPattern = (value: BoolPattern): Pattern => (isPattern(value) ? value : ast.boolean(value))
 
 /**
  * Returns the string name of a property access expression
