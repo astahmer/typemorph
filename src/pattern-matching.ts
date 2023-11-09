@@ -1,7 +1,7 @@
 import { Node, SyntaxKind, ts, type KindToNodeMappings, createWrappedNode, SourceFile } from 'ts-morph'
 import { getSyntaxKindName } from './get-syntax-kind-name'
 import { binaryOperators } from './operators'
-import { isLiteral, isStringLike, unwrapExpression } from './ast-utils'
+import { getPropertyAccessExpressionName, isLiteral, isStringLike, unwrapExpression } from './ast-utils'
 import { compact, isNotNullish } from './utils'
 
 type AnyParams = Record<string, any>
@@ -11,6 +11,13 @@ export interface PatternOptions<TSyntax extends SyntaxKind, Params> {
   params?: Params
 }
 
+const toString = (node: Node) => ({
+  kind: node.getKindName(),
+  text: node.getText(),
+  line: node.getStartLineNumber(),
+  column: node.getStartLinePos(),
+})
+
 export class Pattern<
   TSyntax extends SyntaxKind = SyntaxKind,
   TMatch = NodeOfKind<TSyntax>,
@@ -18,9 +25,12 @@ export class Pattern<
 > {
   kind: SyntaxKind
   kindName: string | undefined
-  private assert: (node: Node | Node[]) => boolean | Node | Node[] | undefined
   params: Params
-  match?: TMatch | undefined
+
+  lastMatch?: TMatch | undefined
+  matches: Set<TMatch> = new Set()
+
+  private assert: (node: Node | Node[]) => boolean | Node | Node[] | undefined
 
   constructor({ kind, match: assert, params }: PatternOptions<TSyntax, Params>) {
     this.kind = kind
@@ -32,11 +42,29 @@ export class Pattern<
   matchFn(node: Node | Node[]) {
     const result = this.assert(node)
     if (result) {
-      const match = Node.isNode(result) ? result : node
+      const match = (Node.isNode(result) ? result : node) as TMatch
       // console.log(111, this.kindName, { result, isNOde: Node.isNode(result) })
-      this.match = match as TMatch
-      return match as TMatch
+      this.lastMatch = match
+      this.matches.add(match)
+      return match
     }
+  }
+
+  toString() {
+    if (!this.lastMatch) `Pattern<${this.kindName}> no match`
+
+    return `Pattern<${this.kindName}> ${JSON.stringify(
+      {
+        params: this.params,
+        matches: Array.from(this.matches).map((n) => toString(n as Node)),
+      },
+      (_key, value) => {
+        if (Node.isNode(value)) return value.getKindName()
+        if (value instanceof Pattern) return value.kindName
+        return value
+      },
+      2,
+    )}`
   }
 }
 
@@ -142,9 +170,9 @@ export class ast {
   }
 
   /**
-   * Matches any list of nodes with each node in the list against the given pattern
+   * Returns true for any node list with every element matching the given pattern
    */
-  static each<TPattern extends Pattern>(pattern: TPattern, options?: ListOptions) {
+  static every<TPattern extends Pattern>(pattern: TPattern, options?: ListOptions) {
     const _opts = { min: 0, ...options }
 
     return new Pattern({
@@ -155,6 +183,24 @@ export class ast {
         if (nodeList.length < _opts.min) return
         if (_opts.max && nodeList.length > _opts.max) return
         return nodeList.every((child) => pattern.matchFn(child))
+      },
+    })
+  }
+
+  /**
+   * Returns true for any node list with some element matching the given pattern
+   */
+  static some<TPattern extends Pattern>(pattern: TPattern, options?: ListOptions) {
+    const _opts = { min: 0, ...options }
+
+    return new Pattern({
+      params: { pattern },
+      kind: SyntaxKind.SyntaxList as any,
+      match: (nodeList) => {
+        if (!Array.isArray(nodeList)) return
+        if (nodeList.length < _opts.min) return
+        if (_opts.max && nodeList.length > _opts.max) return
+        return nodeList.some((child) => pattern.matchFn(child))
       },
     })
   }
@@ -174,18 +220,16 @@ export class ast {
     return new Pattern({ kind: SyntaxKind.Unknown, match: () => true })
   }
 
-  static when<TNode extends Node>(condition: (node: Node | Node[]) => boolean | Node | Node[] | undefined) {
-    return new Pattern<ReturnType<TNode['getKind']>, TNode>({
+  static when<TInput = Node | Node[]>(condition: (node: TInput) => boolean | Node | Node[] | undefined) {
+    return new Pattern({
       kind: SyntaxKind.Unknown as any,
-      match: condition,
+      match: condition as any,
     })
   }
 
   static refine<TPattern extends Pattern, RNode extends Node>(
     pattern: TPattern,
-    transform: (
-      nodeOrList: PatternNode<TPattern> | Array<PatternNode<TPattern>>,
-    ) => RNode | RNode[] | boolean | undefined,
+    transform: (nodeOrList: PatternNode<TPattern>) => RNode | RNode[] | boolean | undefined,
   ) {
     return new Pattern<ReturnType<RNode['getKind']>, RNode>({
       kind: pattern.kind as any,
@@ -405,7 +449,7 @@ export class ast {
         })
       : undefined
 
-    const list = props ? (isPartial ? ast.each(ast.union(...props)) : ast.tuple(...props)) : undefined
+    const list = props ? (isPartial ? ast.every(ast.union(...props)) : ast.tuple(...props)) : undefined
     const pattern = ast.node(SyntaxKind.ObjectLiteralExpression, props ? { properties: list } : undefined)
 
     return new Pattern({
@@ -526,7 +570,6 @@ export class ast {
     })
   }
 
-  // TODO import namespace `import * as foo from 'foo'`
   /**
    * @example ast.importDeclaration("node:path", "path", true) -> import type * as path from 'path'
    * @example ast.importDeclaration("node:fs", ["writeFile", "readFile"]) -> import { writeFile, readFile } from 'fs'
@@ -673,30 +716,6 @@ const getNamePattern = (value: NamePattern): Pattern => (isPattern(value) ? valu
 
 // type BoolPattern = boolean | Pattern
 // const getBoolPattern = (value: BoolPattern): Pattern => (isPattern(value) ? value : ast.boolean(value))
-
-/**
- * Returns the string name of a property access expression
- * It will ignore any expression wrapper and tokens, like: `?` `!` `()` `as`
- * @example `foo.bar` will match `foo.bar`
- * @example `foo.bar.baz` will also match `(foo?.bar as any)!.baz`
- */
-const getPropertyAccessExpressionName = (node: Node): string | undefined => {
-  const names: string[] = []
-
-  let expression = node
-  while (Node.isPropertyAccessExpression(expression)) {
-    names.unshift(expression.getName())
-    expression = unwrapExpression(expression.getExpression())
-  }
-
-  if (!Node.isIdentifier(expression)) {
-    return
-  }
-
-  names.unshift(expression.getText())
-
-  return names.join('.')
-}
 
 const getOperatorPattern = (value: Pattern | keyof typeof binaryOperators | ts.LogicalOperator) => {
   if (isPattern(value)) return value

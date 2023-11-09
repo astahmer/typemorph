@@ -75,3 +75,27 @@ export const unwrapExpression = (node: Node): Node => {
 
   return node
 }
+
+/**
+ * Returns the string name of a property access expression
+ * It will ignore any expression wrapper and tokens, like: `?` `!` `()` `as`
+ * @example `foo.bar` will match `foo.bar`
+ * @example `foo.bar.baz` will also match `(foo?.bar as any)!.baz`
+ */
+export const getPropertyAccessExpressionName = (node: Node): string | undefined => {
+  const names: string[] = []
+
+  let expression = node
+  while (Node.isPropertyAccessExpression(expression)) {
+    names.unshift(expression.getName())
+    expression = unwrapExpression(expression.getExpression())
+  }
+
+  if (!Node.isIdentifier(expression)) {
+    return
+  }
+
+  names.unshift(expression.getText())
+
+  return names.join('.')
+}

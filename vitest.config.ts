@@ -5,6 +5,9 @@ export default defineConfig({
   test: {
     setupFiles: ['tests-setup.ts'],
     hideSkippedTests: true,
+    snapshotFormat: {
+      escapeString: false,
+    },
     exclude: [
       '**/node_modules/**',
       '**/dist/**',

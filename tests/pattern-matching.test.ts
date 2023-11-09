@@ -1,24 +1,7 @@
+import { Node, SyntaxKind, ts } from 'ts-morph'
 import { describe, expect, test } from 'vitest'
-import { createProject } from './create-project'
-import { SourceFile, ts, Node, Identifier, ObjectLiteralExpression, SyntaxKind } from 'ts-morph'
-import { Pattern, ast } from '../src/pattern-matching'
-
-const project = createProject()
-const parse = (code: string) =>
-  project.createSourceFile('file.tsx', code, { overwrite: true, scriptKind: ts.ScriptKind.TSX })
-
-const traverse = <TPattern extends Pattern>(sourceFile: SourceFile, pattern: TPattern) => {
-  let match: Pattern | undefined
-  sourceFile.forEachDescendant((node, traversal) => {
-    // console.log(node.getKindName())
-    if (pattern.matchFn(node)) {
-      match = pattern
-      traversal.stop()
-    }
-  })
-
-  return match
-}
+import { ast } from '../src/pattern-matching'
+import { parse, traverse } from './tests-utils'
 
 test('ast.node', () => {
   const code = `
@@ -31,10 +14,26 @@ test('ast.node', () => {
 
   expect(traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression))).toMatchInlineSnapshot(`
     Pattern<CallExpression> {
-      "matchKind": "CallExpression",
-      "text": "someFn()",
-      "line": 2,
-      "column": 1
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "someFn()",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 3,
+          "column": 18
+        },
+        {
+          "kind": "CallExpression",
+          "text": "find({ id: 1 })",
+          "line": 4,
+          "column": 53
+        }
+      ]
     }
   `)
 })
@@ -71,10 +70,26 @@ test('ast.nodeList', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{}",
-      "line": 2,
-      "column": 1
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{}",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ id: 1 }",
+          "line": 4,
+          "column": 55
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ aaa: 1, bbb: 2 }",
+          "line": 5,
+          "column": 79
+        }
+      ]
     }
   `)
 
@@ -93,10 +108,14 @@ test('ast.nodeList', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ id: 1 }",
-      "line": 4,
-      "column": 55
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ id: 1 }",
+          "line": 4,
+          "column": 55
+        }
+      ]
     }
   `)
 
@@ -113,10 +132,14 @@ test('ast.nodeList', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ aaa: 1, bbb: 2 }",
-      "line": 5,
-      "column": 79
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ aaa: 1, bbb: 2 }",
+          "line": 5,
+          "column": 79
+        }
+      ]
     }
   `)
 })
@@ -136,45 +159,75 @@ test('ast.each - list options', () => {
     traverse(
       sourceFile,
       ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
-        properties: ast.each(ast.any(), { min: 1 }),
+        properties: ast.every(ast.any(), { min: 1 }),
       }),
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ id: 1 }",
-      "line": 4,
-      "column": 55
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ id: 1 }",
+          "line": 4,
+          "column": 55
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ xxx: 1, yyy: 2, zzz: 3 }",
+          "line": 5,
+          "column": 79
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ aaa: 1, bbb: 2 }",
+          "line": 6,
+          "column": 121
+        }
+      ]
     }
   `)
   expect(
     traverse(
       sourceFile,
       ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
-        properties: ast.each(ast.any(), { min: 2 }),
+        properties: ast.every(ast.any(), { min: 2 }),
       }),
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ xxx: 1, yyy: 2, zzz: 3 }",
-      "line": 5,
-      "column": 79
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ xxx: 1, yyy: 2, zzz: 3 }",
+          "line": 5,
+          "column": 79
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ aaa: 1, bbb: 2 }",
+          "line": 6,
+          "column": 121
+        }
+      ]
     }
   `)
   expect(
     traverse(
       sourceFile,
       ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
-        properties: ast.each(ast.any(), { min: 2, max: 2 }),
+        properties: ast.every(ast.any(), { min: 2, max: 2 }),
       }),
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ aaa: 1, bbb: 2 }",
-      "line": 6,
-      "column": 121
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ aaa: 1, bbb: 2 }",
+          "line": 6,
+          "column": 121
+        }
+      ]
     }
   `)
 })
@@ -194,22 +247,44 @@ test('ast.each', () => {
     traverse(
       sourceFile,
       ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
-        properties: ast.each(ast.any()),
+        properties: ast.every(ast.any()),
       }),
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{}",
-      "line": 2,
-      "column": 1
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{}",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ id: 1 }",
+          "line": 4,
+          "column": 55
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ xxx: 1, yyy: 2, zzz: 3 }",
+          "line": 5,
+          "column": 79
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ aaa: 1, bbb: 2 }",
+          "line": 6,
+          "column": 121
+        }
+      ]
     }
   `)
   expect(
     traverse(
       sourceFile,
       ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
-        properties: ast.each(ast.node(SyntaxKind.AbstractKeyword), { min: 1 }),
+        properties: ast.every(ast.node(SyntaxKind.AbstractKeyword), { min: 1 }),
       }),
     ),
   ).toMatchInlineSnapshot('undefined')
@@ -217,15 +292,31 @@ test('ast.each', () => {
     traverse(
       sourceFile,
       ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
-        properties: ast.each(ast.node(SyntaxKind.PropertyAssignment), { min: 1 }),
+        properties: ast.every(ast.node(SyntaxKind.PropertyAssignment), { min: 1 }),
       }),
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ id: 1 }",
-      "line": 4,
-      "column": 55
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ id: 1 }",
+          "line": 4,
+          "column": 55
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ xxx: 1, yyy: 2, zzz: 3 }",
+          "line": 5,
+          "column": 79
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ aaa: 1, bbb: 2 }",
+          "line": 6,
+          "column": 121
+        }
+      ]
     }
   `)
 
@@ -236,7 +327,7 @@ test('ast.each', () => {
     traverse(
       sourceFile,
       ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
-        properties: ast.each(
+        properties: ast.every(
           ast.when((node) => {
             return incompleteUnion.matchFn(node)
           }),
@@ -252,7 +343,7 @@ test('ast.each', () => {
     traverse(
       sourceFile,
       ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
-        properties: ast.each(
+        properties: ast.every(
           ast.when((node) => union.matchFn(node)),
           { min: 1 },
         ),
@@ -260,10 +351,14 @@ test('ast.each', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ xxx: 1, yyy: 2, zzz: 3 }",
-      "line": 5,
-      "column": 79
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ xxx: 1, yyy: 2, zzz: 3 }",
+          "line": 5,
+          "column": 79
+        }
+      ]
     }
   `)
 })
@@ -279,10 +374,116 @@ test('ast.any', () => {
 
   expect(traverse(sourceFile, ast.any())).toMatchInlineSnapshot(`
     Pattern<Unknown> {
-      "matchKind": "ExpressionStatement",
-      "text": "another(1, true, 3, \\"str\\")",
-      "line": 2,
-      "column": 1
+      "matches": [
+        {
+          "kind": "ExpressionStatement",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "Identifier",
+          "text": "another",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "NumericLiteral",
+          "text": "1",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "TrueKeyword",
+          "text": "true",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "NumericLiteral",
+          "text": "3",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "StringLiteral",
+          "text": "\\"str\\"",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "ExpressionStatement",
+          "text": "someFn()",
+          "line": 3,
+          "column": 36
+        },
+        {
+          "kind": "CallExpression",
+          "text": "someFn()",
+          "line": 3,
+          "column": 36
+        },
+        {
+          "kind": "Identifier",
+          "text": "someFn",
+          "line": 3,
+          "column": 36
+        },
+        {
+          "kind": "ExpressionStatement",
+          "text": "find({ id: 1 })",
+          "line": 4,
+          "column": 53
+        },
+        {
+          "kind": "CallExpression",
+          "text": "find({ id: 1 })",
+          "line": 4,
+          "column": 53
+        },
+        {
+          "kind": "Identifier",
+          "text": "find",
+          "line": 4,
+          "column": 53
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ id: 1 }",
+          "line": 4,
+          "column": 53
+        },
+        {
+          "kind": "PropertyAssignment",
+          "text": "id: 1",
+          "line": 4,
+          "column": 53
+        },
+        {
+          "kind": "Identifier",
+          "text": "id",
+          "line": 4,
+          "column": 53
+        },
+        {
+          "kind": "NumericLiteral",
+          "text": "1",
+          "line": 4,
+          "column": 53
+        },
+        {
+          "kind": "EndOfFileToken",
+          "text": "",
+          "line": 5,
+          "column": 77
+        }
+      ]
     }
   `)
 })
@@ -303,10 +504,14 @@ test('ast.when', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<Unknown> {
-      "matchKind": "Identifier",
-      "text": "find",
-      "line": 4,
-      "column": 53
+      "matches": [
+        {
+          "kind": "Identifier",
+          "text": "find",
+          "line": 4,
+          "column": 53
+        }
+      ]
     }
   `)
 })
@@ -327,10 +532,14 @@ test('ast.refine', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<CallExpression> {
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ id: 1 }",
-      "line": 4,
-      "column": 53
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ id: 1 }",
+          "line": 4,
+          "column": 53
+        }
+      ]
     }
   `)
 })
@@ -351,10 +560,14 @@ test('ast.named', () => {
       "params": {
         "name": "find"
       },
-      "matchKind": "CallExpression",
-      "text": "find({ id: 1 })",
-      "line": 6,
-      "column": 88
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "find({ id: 1 })",
+          "line": 6,
+          "column": 88
+        }
+      ]
     }
   `)
 
@@ -364,10 +577,14 @@ test('ast.named', () => {
       "params": {
         "name": "xxx"
       },
-      "matchKind": "ImportClause",
-      "text": "xxx",
-      "line": 2,
-      "column": 1
+      "matches": [
+        {
+          "kind": "ImportClause",
+          "text": "xxx",
+          "line": 2,
+          "column": 1
+        }
+      ]
     }
   `)
 })
@@ -389,10 +606,14 @@ test('ast.identifier', () => {
       "params": {
         "name": "find"
       },
-      "matchKind": "Identifier",
-      "text": "find",
-      "line": 6,
-      "column": 88
+      "matches": [
+        {
+          "kind": "Identifier",
+          "text": "find",
+          "line": 6,
+          "column": 88
+        }
+      ]
     }
   `)
 })
@@ -410,10 +631,44 @@ test('ast.literal', () => {
 
   expect(traverse(sourceFile, ast.literal())).toMatchInlineSnapshot(`
     Pattern<Unknown> {
-      "matchKind": "StringLiteral",
-      "text": "\\"some-module\\"",
-      "line": 2,
-      "column": 1
+      "matches": [
+        {
+          "kind": "StringLiteral",
+          "text": "\\"some-module\\"",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "NumericLiteral",
+          "text": "1",
+          "line": 4,
+          "column": 36
+        },
+        {
+          "kind": "TrueKeyword",
+          "text": "true",
+          "line": 4,
+          "column": 36
+        },
+        {
+          "kind": "NumericLiteral",
+          "text": "3",
+          "line": 4,
+          "column": 36
+        },
+        {
+          "kind": "StringLiteral",
+          "text": "\\"str\\"",
+          "line": 4,
+          "column": 36
+        },
+        {
+          "kind": "NumericLiteral",
+          "text": "1",
+          "line": 6,
+          "column": 88
+        }
+      ]
     }
   `)
   expect(traverse(sourceFile, ast.literal(3))).toMatchInlineSnapshot(`
@@ -421,10 +676,14 @@ test('ast.literal', () => {
       "params": {
         "value": 3
       },
-      "matchKind": "NumericLiteral",
-      "text": "3",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "NumericLiteral",
+          "text": "3",
+          "line": 4,
+          "column": 36
+        }
+      ]
     }
   `)
   expect(traverse(sourceFile, ast.literal('str'))).toMatchInlineSnapshot(`
@@ -432,10 +691,14 @@ test('ast.literal', () => {
       "params": {
         "value": "str"
       },
-      "matchKind": "StringLiteral",
-      "text": "\\"str\\"",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "StringLiteral",
+          "text": "\\"str\\"",
+          "line": 4,
+          "column": 36
+        }
+      ]
     }
   `)
   expect(traverse(sourceFile, ast.literal(true))).toMatchInlineSnapshot(`
@@ -443,10 +706,14 @@ test('ast.literal', () => {
       "params": {
         "value": true
       },
-      "matchKind": "TrueKeyword",
-      "text": "true",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "TrueKeyword",
+          "text": "true",
+          "line": 4,
+          "column": 36
+        }
+      ]
     }
   `)
 })
@@ -468,10 +735,14 @@ test('ast.literal', () => {
       "params": {
         "value": 3
       },
-      "matchKind": "NumericLiteral",
-      "text": "3",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "NumericLiteral",
+          "text": "3",
+          "line": 4,
+          "column": 36
+        }
+      ]
     }
   `)
 })
@@ -491,10 +762,20 @@ test('ast.string', () => {
   expect(first).toMatchInlineSnapshot(`
     Pattern<StringLiteral> {
       "params": {},
-      "matchKind": "StringLiteral",
-      "text": "\\"some-module\\"",
-      "line": 2,
-      "column": 1
+      "matches": [
+        {
+          "kind": "StringLiteral",
+          "text": "\\"some-module\\"",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "StringLiteral",
+          "text": "\\"str\\"",
+          "line": 4,
+          "column": 36
+        }
+      ]
     }
   `)
 
@@ -505,10 +786,14 @@ test('ast.string', () => {
       "params": {
         "value": "str"
       },
-      "matchKind": "StringLiteral",
-      "text": "\\"str\\"",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "StringLiteral",
+          "text": "\\"str\\"",
+          "line": 4,
+          "column": 36
+        }
+      ]
     }
   `)
 })
@@ -528,10 +813,26 @@ test('ast.number', () => {
   expect(first).toMatchInlineSnapshot(`
     Pattern<NumericLiteral> {
       "params": {},
-      "matchKind": "NumericLiteral",
-      "text": "1",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "NumericLiteral",
+          "text": "1",
+          "line": 4,
+          "column": 36
+        },
+        {
+          "kind": "NumericLiteral",
+          "text": "3",
+          "line": 4,
+          "column": 36
+        },
+        {
+          "kind": "NumericLiteral",
+          "text": "1",
+          "line": 6,
+          "column": 88
+        }
+      ]
     }
   `)
   const pattern = traverse(sourceFile, ast.number(3))
@@ -541,10 +842,14 @@ test('ast.number', () => {
       "params": {
         "value": 3
       },
-      "matchKind": "NumericLiteral",
-      "text": "3",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "NumericLiteral",
+          "text": "3",
+          "line": 4,
+          "column": 36
+        }
+      ]
     }
   `)
 })
@@ -559,15 +864,24 @@ test('ast.boolean', () => {
     `
 
   const sourceFile = parse(code)
-  const first = traverse(sourceFile, ast.boolean())
 
-  expect(first).toMatchInlineSnapshot(`
+  expect(traverse(sourceFile, ast.boolean())).toMatchInlineSnapshot(`
     Pattern<TrueKeyword> {
       "params": {},
-      "matchKind": "TrueKeyword",
-      "text": "true",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "TrueKeyword",
+          "text": "true",
+          "line": 4,
+          "column": 36
+        },
+        {
+          "kind": "FalseKeyword",
+          "text": "false",
+          "line": 5,
+          "column": 71
+        }
+      ]
     }
   `)
   const truthy = traverse(sourceFile, ast.boolean(true))
@@ -577,10 +891,14 @@ test('ast.boolean', () => {
       "params": {
         "value": true
       },
-      "matchKind": "TrueKeyword",
-      "text": "true",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "TrueKeyword",
+          "text": "true",
+          "line": 4,
+          "column": 36
+        }
+      ]
     }
   `)
 
@@ -591,10 +909,14 @@ test('ast.boolean', () => {
       "params": {
         "value": false
       },
-      "matchKind": "FalseKeyword",
-      "text": "false",
-      "line": 5,
-      "column": 71
+      "matches": [
+        {
+          "kind": "FalseKeyword",
+          "text": "false",
+          "line": 5,
+          "column": 71
+        }
+      ]
     }
   `)
 })
@@ -613,10 +935,14 @@ test('ast.null', () => {
 
   expect(pattern).toMatchInlineSnapshot(`
     Pattern<NullKeyword> {
-      "matchKind": "NullKeyword",
-      "text": "null",
-      "line": 6,
-      "column": 88
+      "matches": [
+        {
+          "kind": "NullKeyword",
+          "text": "null",
+          "line": 6,
+          "column": 88
+        }
+      ]
     }
   `)
 })
@@ -635,10 +961,14 @@ test('ast.undefined', () => {
 
   expect(pattern).toMatchInlineSnapshot(`
     Pattern<UndefinedKeyword> {
-      "matchKind": "Identifier",
-      "text": "undefined",
-      "line": 6,
-      "column": 88
+      "matches": [
+        {
+          "kind": "Identifier",
+          "text": "undefined",
+          "line": 6,
+          "column": 88
+        }
+      ]
     }
   `)
 })
@@ -663,10 +993,14 @@ test('ast.tuple', () => {
 
   expect(pattern).toMatchInlineSnapshot(`
     Pattern<CallExpression> {
-      "matchKind": "CallExpression",
-      "text": "another(1, true, 3, \\"str\\")",
-      "line": 5,
-      "column": 62
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 5,
+          "column": 62
+        }
+      ]
     }
   `)
 })
@@ -693,10 +1027,14 @@ test('ast.enum', () => {
   expect(byName).toMatchInlineSnapshot(`
     Pattern<EnumDeclaration> {
       "params": {},
-      "matchKind": "EnumDeclaration",
-      "text": "enum SomeEnum {\\n      A = \\"a\\",\\n      B = \\"b\\",\\n      C = \\"c\\",\\n    }",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "EnumDeclaration",
+          "text": "enum SomeEnum {\\n      A = \\"a\\",\\n      B = \\"b\\",\\n      C = \\"c\\",\\n    }",
+          "line": 4,
+          "column": 36
+        }
+      ]
     }
   `)
 
@@ -711,10 +1049,14 @@ test('ast.enum', () => {
           "C": "c"
         }
       },
-      "matchKind": "EnumDeclaration",
-      "text": "enum SomeEnum {\\n      A = \\"a\\",\\n      B = \\"b\\",\\n      C = \\"c\\",\\n    }",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "EnumDeclaration",
+          "text": "enum SomeEnum {\\n      A = \\"a\\",\\n      B = \\"b\\",\\n      C = \\"c\\",\\n    }",
+          "line": 4,
+          "column": 36
+        }
+      ]
     }
   `)
 })
@@ -746,10 +1088,20 @@ test('ast.union', () => {
           "CallExpression"
         ]
       },
-      "matchKind": "StringLiteral",
-      "text": "\\"some-module\\"",
-      "line": 2,
-      "column": 1
+      "matches": [
+        {
+          "kind": "StringLiteral",
+          "text": "\\"some-module\\"",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "CallExpression",
+          "text": "someFn()",
+          "line": 12,
+          "column": 161
+        }
+      ]
     }
   `)
 
@@ -763,10 +1115,20 @@ test('ast.union', () => {
           "StringLiteral"
         ]
       },
-      "matchKind": "StringLiteral",
-      "text": "\\"some-module\\"",
-      "line": 2,
-      "column": 1
+      "matches": [
+        {
+          "kind": "StringLiteral",
+          "text": "\\"some-module\\"",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "CallExpression",
+          "text": "someFn()",
+          "line": 12,
+          "column": 161
+        }
+      ]
     }
   `)
 
@@ -780,10 +1142,14 @@ test('ast.union', () => {
           "CallExpression"
         ]
       },
-      "matchKind": "CallExpression",
-      "text": "someFn()",
-      "line": 12,
-      "column": 161
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "someFn()",
+          "line": 12,
+          "column": 161
+        }
+      ]
     }
   `)
 })
@@ -815,10 +1181,32 @@ test('ast.intersection', () => {
           "Unknown"
         ]
       },
-      "matchKind": "CallExpression",
-      "text": "fn(1, 2, 3, 4, 5)",
-      "line": 10,
-      "column": 108
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "fn(1, 2, 3, 4, 5)",
+          "line": 10,
+          "column": 108
+        },
+        {
+          "kind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 11,
+          "column": 130
+        },
+        {
+          "kind": "CallExpression",
+          "text": "someFn()",
+          "line": 12,
+          "column": 161
+        },
+        {
+          "kind": "CallExpression",
+          "text": "find({ id: undefined })",
+          "line": 13,
+          "column": 174
+        }
+      ]
     }
   `)
 
@@ -847,10 +1235,14 @@ test('ast.intersection', () => {
           "Unknown"
         ]
       },
-      "matchKind": "CallExpression",
-      "text": "someFn()",
-      "line": 12,
-      "column": 161
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "someFn()",
+          "line": 12,
+          "column": 161
+        }
+      ]
     }
   `)
 })
@@ -870,20 +1262,28 @@ describe('ast.callExpression', () => {
         "params": {
           "arguments": []
         },
-        "matchKind": "CallExpression",
-        "text": "someFn()",
-        "line": 2,
-        "column": 1
+        "matches": [
+          {
+            "kind": "CallExpression",
+            "text": "someFn()",
+            "line": 2,
+            "column": 1
+          }
+        ]
       }
     `)
 
     expect(traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression, { expression: ast.identifier('someFn') })))
       .toMatchInlineSnapshot(`
         Pattern<CallExpression> {
-          "matchKind": "CallExpression",
-          "text": "someFn()",
-          "line": 2,
-          "column": 1
+          "matches": [
+            {
+              "kind": "CallExpression",
+              "text": "someFn()",
+              "line": 2,
+              "column": 1
+            }
+          ]
         }
       `)
   })
@@ -904,10 +1304,14 @@ describe('ast.callExpression', () => {
             "ObjectLiteralExpression"
           ]
         },
-        "matchKind": "CallExpression",
-        "text": "find({ id: 1 })",
-        "line": 4,
-        "column": 57
+        "matches": [
+          {
+            "kind": "CallExpression",
+            "text": "find({ id: 1 })",
+            "line": 4,
+            "column": 57
+          }
+        ]
       }
     `,
     )
@@ -934,10 +1338,14 @@ describe('ast.callExpression', () => {
             "TupleType"
           ]
         },
-        "matchKind": "CallExpression",
-        "text": "another(1, true, 3, \\"str\\")",
-        "line": 3,
-        "column": 20
+        "matches": [
+          {
+            "kind": "CallExpression",
+            "text": "another(1, true, 3, \\"str\\")",
+            "line": 3,
+            "column": 20
+          }
+        ]
       }
     `)
 
@@ -948,10 +1356,14 @@ describe('ast.callExpression', () => {
             "TupleType"
           ]
         },
-        "matchKind": "CallExpression",
-        "text": "find({ id: 1 })",
-        "line": 4,
-        "column": 57
+        "matches": [
+          {
+            "kind": "CallExpression",
+            "text": "find({ id: 1 })",
+            "line": 4,
+            "column": 57
+          }
+        ]
       }
     `)
   })
@@ -983,10 +1395,14 @@ describe('ast.callExpression', () => {
             "TupleType"
           ]
         },
-        "matchKind": "CallExpression",
-        "text": "another(1, true, 3, \\"str\\")",
-        "line": 3,
-        "column": 16
+        "matches": [
+          {
+            "kind": "CallExpression",
+            "text": "another(1, true, 3, \\"str\\")",
+            "line": 3,
+            "column": 16
+          }
+        ]
       }
     `,
     )
@@ -1001,10 +1417,14 @@ describe('ast.callExpression', () => {
             "TupleType"
           ]
         },
-        "matchKind": "CallExpression",
-        "text": "another(1, true, 3, \\"str\\")",
-        "line": 3,
-        "column": 16
+        "matches": [
+          {
+            "kind": "CallExpression",
+            "text": "another(1, true, 3, \\"str\\")",
+            "line": 3,
+            "column": 16
+          }
+        ]
       }
     `,
     )
@@ -1022,10 +1442,14 @@ describe('ast.callExpression', () => {
             "TupleType"
           ]
         },
-        "matchKind": "CallExpression",
-        "text": "another(1, true, 3, \\"str\\")",
-        "line": 3,
-        "column": 16
+        "matches": [
+          {
+            "kind": "CallExpression",
+            "text": "another(1, true, 3, \\"str\\")",
+            "line": 3,
+            "column": 16
+          }
+        ]
       }
     `,
     )
@@ -1043,10 +1467,14 @@ describe('ast.callExpression', () => {
             "Unknown"
           ]
         },
-        "matchKind": "CallExpression",
-        "text": "another(1, true, 3, \\"str\\")",
-        "line": 3,
-        "column": 16
+        "matches": [
+          {
+            "kind": "CallExpression",
+            "text": "another(1, true, 3, \\"str\\")",
+            "line": 3,
+            "column": 16
+          }
+        ]
       }
     `,
     )
@@ -1066,10 +1494,14 @@ describe('ast.callExpression', () => {
         "params": {
           "arguments": []
         },
-        "matchKind": "CallExpression",
-        "text": "another(1, true, 3, \\"str\\")",
-        "line": 3,
-        "column": 20
+        "matches": [
+          {
+            "kind": "CallExpression",
+            "text": "another(1, true, 3, \\"str\\")",
+            "line": 3,
+            "column": 20
+          }
+        ]
       }
     `)
     expect(traverse(sourceFile, ast.callExpression('another', ast.rest(ast.any())))).toMatchInlineSnapshot(`
@@ -1079,10 +1511,14 @@ describe('ast.callExpression', () => {
             "RestType"
           ]
         },
-        "matchKind": "CallExpression",
-        "text": "another(1, true, 3, \\"str\\")",
-        "line": 3,
-        "column": 20
+        "matches": [
+          {
+            "kind": "CallExpression",
+            "text": "another(1, true, 3, \\"str\\")",
+            "line": 3,
+            "column": 20
+          }
+        ]
       }
     `)
 
@@ -1094,10 +1530,14 @@ describe('ast.callExpression', () => {
               "TupleType"
             ]
           },
-          "matchKind": "CallExpression",
-          "text": "another(1, true, 3, \\"str\\")",
-          "line": 3,
-          "column": 20
+          "matches": [
+            {
+              "kind": "CallExpression",
+              "text": "another(1, true, 3, \\"str\\")",
+              "line": 3,
+              "column": 20
+            }
+          ]
         }
       `)
 
@@ -1110,10 +1550,14 @@ describe('ast.callExpression', () => {
             "TupleType"
           ]
         },
-        "matchKind": "CallExpression",
-        "text": "another(1, true, 3, \\"str\\")",
-        "line": 3,
-        "column": 20
+        "matches": [
+          {
+            "kind": "CallExpression",
+            "text": "another(1, true, 3, \\"str\\")",
+            "line": 3,
+            "column": 20
+          }
+        ]
       }
     `)
   })
@@ -1134,14 +1578,30 @@ describe('ast.object', () => {
     const sourceFile = parse(code)
 
     expect(traverse(sourceFile, ast.object())).toMatchInlineSnapshot(`
-    Pattern<ObjectLiteralExpression> {
-      "params": {},
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ id: 1 }",
-      "line": 6,
-      "column": 88
-    }
-  `)
+      Pattern<ObjectLiteralExpression> {
+        "params": {},
+        "matches": [
+          {
+            "kind": "ObjectLiteralExpression",
+            "text": "{ id: 1 }",
+            "line": 6,
+            "column": 88
+          },
+          {
+            "kind": "ObjectLiteralExpression",
+            "text": "{ first: true, second: false, third: 3 }",
+            "line": 7,
+            "column": 112
+          },
+          {
+            "kind": "ObjectLiteralExpression",
+            "text": "{}",
+            "line": 8,
+            "column": 167
+          }
+        ]
+      }
+    `)
   })
 
   test('empty object', () => {
@@ -1158,16 +1618,20 @@ describe('ast.object', () => {
     const sourceFile = parse(code)
 
     expect(traverse(sourceFile, ast.object({}))).toMatchInlineSnapshot(`
-    Pattern<ObjectLiteralExpression> {
-      "params": {
-        "properties": {}
-      },
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{}",
-      "line": 8,
-      "column": 167
-    }
-  `)
+      Pattern<ObjectLiteralExpression> {
+        "params": {
+          "properties": {}
+        },
+        "matches": [
+          {
+            "kind": "ObjectLiteralExpression",
+            "text": "{}",
+            "line": 8,
+            "column": 167
+          }
+        ]
+      }
+    `)
   })
 
   test('object with key/value', () => {
@@ -1184,18 +1648,22 @@ describe('ast.object', () => {
     const sourceFile = parse(code)
 
     expect(traverse(sourceFile, ast.object({ id: ast.number() }))).toMatchInlineSnapshot(`
-    Pattern<ObjectLiteralExpression> {
-      "params": {
-        "properties": {
-          "id": "NumericLiteral"
-        }
-      },
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ id: 1 }",
-      "line": 6,
-      "column": 88
-    }
-  `)
+      Pattern<ObjectLiteralExpression> {
+        "params": {
+          "properties": {
+            "id": "NumericLiteral"
+          }
+        },
+        "matches": [
+          {
+            "kind": "ObjectLiteralExpression",
+            "text": "{ id: 1 }",
+            "line": 6,
+            "column": 88
+          }
+        ]
+      }
+    `)
   })
 
   test('partial object', () => {
@@ -1219,10 +1687,14 @@ describe('ast.object', () => {
             "first": "TrueKeyword"
           }
         },
-        "matchKind": "ObjectLiteralExpression",
-        "text": "{}",
-        "line": 8,
-        "column": 167
+        "matches": [
+          {
+            "kind": "ObjectLiteralExpression",
+            "text": "{}",
+            "line": 8,
+            "column": 167
+          }
+        ]
       }
     `)
     expect(traverse(sourceFile, ast.object({ wrong: ast.boolean() }, true))).toMatchInlineSnapshot(`
@@ -1232,27 +1704,35 @@ describe('ast.object', () => {
             "wrong": "TrueKeyword"
           }
         },
-        "matchKind": "ObjectLiteralExpression",
-        "text": "{}",
-        "line": 8,
-        "column": 167
+        "matches": [
+          {
+            "kind": "ObjectLiteralExpression",
+            "text": "{}",
+            "line": 8,
+            "column": 167
+          }
+        ]
       }
     `)
     expect(traverse(sourceFile, ast.object({ wrong: ast.boolean(), first: ast.boolean() }, true)))
       .toMatchInlineSnapshot(`
-      Pattern<ObjectLiteralExpression> {
-        "params": {
-          "properties": {
-            "wrong": "TrueKeyword",
-            "first": "TrueKeyword"
-          }
-        },
-        "matchKind": "ObjectLiteralExpression",
-        "text": "{}",
-        "line": 8,
-        "column": 167
-      }
-    `)
+        Pattern<ObjectLiteralExpression> {
+          "params": {
+            "properties": {
+              "wrong": "TrueKeyword",
+              "first": "TrueKeyword"
+            }
+          },
+          "matches": [
+            {
+              "kind": "ObjectLiteralExpression",
+              "text": "{}",
+              "line": 8,
+              "column": 167
+            }
+          ]
+        }
+      `)
   })
 })
 
@@ -1274,10 +1754,38 @@ test('ast.object', () => {
   expect(first).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
       "params": {},
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ id: 1 }",
-      "line": 6,
-      "column": 88
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ id: 1 }",
+          "line": 6,
+          "column": 88
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{}",
+          "line": 7,
+          "column": 112
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ prop: \\"aaa\\" }",
+          "line": 8,
+          "column": 134
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ prop: \\"bbb\\" }",
+          "line": 8,
+          "column": 134
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ xxx: 999, yyy: 888 }",
+          "line": 9,
+          "column": 189
+        }
+      ]
     }
   `)
   const empty = traverse(sourceFile, ast.object({}))
@@ -1287,10 +1795,14 @@ test('ast.object', () => {
       "params": {
         "properties": {}
       },
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{}",
-      "line": 7,
-      "column": 112
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{}",
+          "line": 7,
+          "column": 112
+        }
+      ]
     }
   `)
 
@@ -1303,10 +1815,14 @@ test('ast.object', () => {
           "id": "NumericLiteral"
         }
       },
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ id: 1 }",
-      "line": 6,
-      "column": 88
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ id: 1 }",
+          "line": 6,
+          "column": 88
+        }
+      ]
     }
   `)
 
@@ -1317,10 +1833,20 @@ test('ast.object', () => {
           "prop": "StringLiteral"
         }
       },
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ prop: \\"aaa\\" }",
-      "line": 8,
-      "column": 134
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ prop: \\"aaa\\" }",
+          "line": 8,
+          "column": 134
+        },
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ prop: \\"bbb\\" }",
+          "line": 8,
+          "column": 134
+        }
+      ]
     }
   `)
 
@@ -1331,28 +1857,36 @@ test('ast.object', () => {
           "prop": "StringLiteral"
         }
       },
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ prop: \\"bbb\\" }",
-      "line": 8,
-      "column": 134
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ prop: \\"bbb\\" }",
+          "line": 8,
+          "column": 134
+        }
+      ]
     }
   `)
 
   expect(traverse(sourceFile, ast.object({ xxx: ast.union(ast.number(), ast.string()), yyy: ast.any() })))
     .toMatchInlineSnapshot(`
-    Pattern<ObjectLiteralExpression> {
-      "params": {
-        "properties": {
-          "xxx": "UnionType",
-          "yyy": "Unknown"
-        }
-      },
-      "matchKind": "ObjectLiteralExpression",
-      "text": "{ xxx: 999, yyy: 888 }",
-      "line": 9,
-      "column": 189
-    }
-  `)
+      Pattern<ObjectLiteralExpression> {
+        "params": {
+          "properties": {
+            "xxx": "UnionType",
+            "yyy": "Unknown"
+          }
+        },
+        "matches": [
+          {
+            "kind": "ObjectLiteralExpression",
+            "text": "{ xxx: 999, yyy: 888 }",
+            "line": 9,
+            "column": 189
+          }
+        ]
+      }
+    `)
 })
 
 test('ast.array', () => {
@@ -1372,10 +1906,32 @@ test('ast.array', () => {
   expect(traverse(sourceFile, ast.array())).toMatchInlineSnapshot(`
     Pattern<ArrayLiteralExpression> {
       "params": {},
-      "matchKind": "ArrayLiteralExpression",
-      "text": "[]",
-      "line": 7,
-      "column": 112
+      "matches": [
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[]",
+          "line": 7,
+          "column": 112
+        },
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[\\"aaa\\"]",
+          "line": 8,
+          "column": 134
+        },
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[\\"bbb\\"]",
+          "line": 8,
+          "column": 134
+        },
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[999, 888]",
+          "line": 9,
+          "column": 173
+        }
+      ]
     }
   `)
 
@@ -1384,10 +1940,26 @@ test('ast.array', () => {
       "params": {
         "pattern": "Unknown"
       },
-      "matchKind": "ArrayLiteralExpression",
-      "text": "[\\"aaa\\"]",
-      "line": 8,
-      "column": 134
+      "matches": [
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[\\"aaa\\"]",
+          "line": 8,
+          "column": 134
+        },
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[\\"bbb\\"]",
+          "line": 8,
+          "column": 134
+        },
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[999, 888]",
+          "line": 9,
+          "column": 173
+        }
+      ]
     }
   `)
 
@@ -1396,10 +1968,14 @@ test('ast.array', () => {
       "params": {
         "pattern": "NumericLiteral"
       },
-      "matchKind": "ArrayLiteralExpression",
-      "text": "[999, 888]",
-      "line": 9,
-      "column": 173
+      "matches": [
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[999, 888]",
+          "line": 9,
+          "column": 173
+        }
+      ]
     }
   `)
 
@@ -1408,10 +1984,20 @@ test('ast.array', () => {
       "params": {
         "pattern": "StringLiteral"
       },
-      "matchKind": "ArrayLiteralExpression",
-      "text": "[\\"aaa\\"]",
-      "line": 8,
-      "column": 134
+      "matches": [
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[\\"aaa\\"]",
+          "line": 8,
+          "column": 134
+        },
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[\\"bbb\\"]",
+          "line": 8,
+          "column": 134
+        }
+      ]
     }
   `)
 
@@ -1420,10 +2006,14 @@ test('ast.array', () => {
       "params": {
         "pattern": "StringLiteral"
       },
-      "matchKind": "ArrayLiteralExpression",
-      "text": "[\\"bbb\\"]",
-      "line": 8,
-      "column": 134
+      "matches": [
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[\\"bbb\\"]",
+          "line": 8,
+          "column": 134
+        }
+      ]
     }
   `)
 
@@ -1432,10 +2022,26 @@ test('ast.array', () => {
       "params": {
         "pattern": "UnionType"
       },
-      "matchKind": "ArrayLiteralExpression",
-      "text": "[\\"aaa\\"]",
-      "line": 8,
-      "column": 134
+      "matches": [
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[\\"aaa\\"]",
+          "line": 8,
+          "column": 134
+        },
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[\\"bbb\\"]",
+          "line": 8,
+          "column": 134
+        },
+        {
+          "kind": "ArrayLiteralExpression",
+          "text": "[999, 888]",
+          "line": 9,
+          "column": 173
+        }
+      ]
     }
   `)
 })
@@ -1462,10 +2068,14 @@ describe('ast.propertyAccessExpression', () => {
         "params": {
           "name": "styled.div"
         },
-        "matchKind": "PropertyAccessExpression",
-        "text": "styled.div",
-        "line": 7,
-        "column": 123
+        "matches": [
+          {
+            "kind": "PropertyAccessExpression",
+            "text": "styled.div",
+            "line": 7,
+            "column": 123
+          }
+        ]
       }
     `)
 
@@ -1474,10 +2084,14 @@ describe('ast.propertyAccessExpression', () => {
         "params": {
           "name": "this.props.xxx"
         },
-        "matchKind": "PropertyAccessExpression",
-        "text": "this.props.xxx",
-        "line": 8,
-        "column": 162
+        "matches": [
+          {
+            "kind": "PropertyAccessExpression",
+            "text": "this.props.xxx",
+            "line": 8,
+            "column": 162
+          }
+        ]
       }
     `)
     expect(traverse(sourceFile, ast.propertyAccessExpression('using?.optional?.chaining'))).toMatchInlineSnapshot(
@@ -1486,10 +2100,14 @@ describe('ast.propertyAccessExpression', () => {
         "params": {
           "name": "using?.optional?.chaining"
         },
-        "matchKind": "PropertyAccessExpression",
-        "text": "using?.optional?.chaining",
-        "line": 10,
-        "column": 209
+        "matches": [
+          {
+            "kind": "PropertyAccessExpression",
+            "text": "using?.optional?.chaining",
+            "line": 10,
+            "column": 209
+          }
+        ]
       }
     `,
     )
@@ -1501,10 +2119,14 @@ describe('ast.propertyAccessExpression', () => {
         "params": {
           "name": "((wrapped?.around! as any)?.multiple as any)?.things"
         },
-        "matchKind": "PropertyAccessExpression",
-        "text": "((wrapped?.around! as any)?.multiple as any)?.things",
-        "line": 11,
-        "column": 246
+        "matches": [
+          {
+            "kind": "PropertyAccessExpression",
+            "text": "((wrapped?.around! as any)?.multiple as any)?.things",
+            "line": 11,
+            "column": 246
+          }
+        ]
       }
     `,
     )
@@ -1532,10 +2154,14 @@ describe('ast.propertyAccessExpression', () => {
         "params": {
           "name": "using.optional.chaining"
         },
-        "matchKind": "PropertyAccessExpression",
-        "text": "using?.optional?.chaining",
-        "line": 10,
-        "column": 209
+        "matches": [
+          {
+            "kind": "PropertyAccessExpression",
+            "text": "using?.optional?.chaining",
+            "line": 10,
+            "column": 209
+          }
+        ]
       }
     `,
     )
@@ -1545,10 +2171,14 @@ describe('ast.propertyAccessExpression', () => {
         "params": {
           "name": "wrapped.around.multiple.things"
         },
-        "matchKind": "PropertyAccessExpression",
-        "text": "((wrapped?.around! as any)?.multiple as any)?.things",
-        "line": 11,
-        "column": 246
+        "matches": [
+          {
+            "kind": "PropertyAccessExpression",
+            "text": "((wrapped?.around! as any)?.multiple as any)?.things",
+            "line": 11,
+            "column": 246
+          }
+        ]
       }
     `,
     )
@@ -1578,10 +2208,14 @@ test('ast.elementAccessExpression', () => {
         "name": "styled",
         "arg": "StringLiteral"
       },
-      "matchKind": "ElementAccessExpression",
-      "text": "styled[\\"div\\"]",
-      "line": 7,
-      "column": 123
+      "matches": [
+        {
+          "kind": "ElementAccessExpression",
+          "text": "styled[\\"div\\"]",
+          "line": 7,
+          "column": 123
+        }
+      ]
     }
   `,
   )
@@ -1591,10 +2225,14 @@ test('ast.elementAccessExpression', () => {
         "name": "wrapped",
         "arg": "Unknown"
       },
-      "matchKind": "ElementAccessExpression",
-      "text": "wrapped?.[\\"around\\"]",
-      "line": 11,
-      "column": 266
+      "matches": [
+        {
+          "kind": "ElementAccessExpression",
+          "text": "wrapped?.[\\"around\\"]",
+          "line": 11,
+          "column": 266
+        }
+      ]
     }
   `)
 
@@ -1604,10 +2242,14 @@ test('ast.elementAccessExpression', () => {
         "name": "Unknown",
         "arg": "StringLiteral"
       },
-      "matchKind": "ElementAccessExpression",
-      "text": "((wrapped?.[\\"around\\"]! as any)?.[\\"multiple\\"] as any)?.[\\"things\\"]",
-      "line": 11,
-      "column": 266
+      "matches": [
+        {
+          "kind": "ElementAccessExpression",
+          "text": "((wrapped?.[\\"around\\"]! as any)?.[\\"multiple\\"] as any)?.[\\"things\\"]",
+          "line": 11,
+          "column": 266
+        }
+      ]
     }
   `)
 })
@@ -1640,10 +2282,14 @@ test('ast.unwrap', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<CallExpression> {
-      "matchKind": "CallExpression",
-      "text": "another(1, (true as any), 3, \\"str\\")",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "another(1, (true as any), 3, \\"str\\")",
+          "line": 4,
+          "column": 36
+        }
+      ]
     }
   `)
 
@@ -1652,18 +2298,22 @@ test('ast.unwrap', () => {
   )
   expect(traverse(sourceFile, ast.callExpression('find', ast.unwrap(ast.object({ id: ast.null() })))))
     .toMatchInlineSnapshot(`
-    Pattern<CallExpression> {
-      "params": {
-        "arguments": [
-          "Unknown"
+      Pattern<CallExpression> {
+        "params": {
+          "arguments": [
+            "Unknown"
+          ]
+        },
+        "matches": [
+          {
+            "kind": "CallExpression",
+            "text": "find(({ id: null }) as any)",
+            "line": 6,
+            "column": 97
+          }
         ]
-      },
-      "matchKind": "CallExpression",
-      "text": "find(({ id: null }) as any)",
-      "line": 6,
-      "column": 97
-    }
-  `)
+      }
+    `)
 })
 
 test('ast.conditionalExpression', () => {
@@ -1684,10 +2334,20 @@ test('ast.conditionalExpression', () => {
         "whenTrue": "NumericLiteral",
         "whenFalse": "NumericLiteral"
       },
-      "matchKind": "ConditionalExpression",
-      "text": "cond ? 1 : 2",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "ConditionalExpression",
+          "text": "cond ? 1 : 2",
+          "line": 4,
+          "column": 36
+        },
+        {
+          "kind": "ConditionalExpression",
+          "text": "cond6 ? 7 : 8",
+          "line": 5,
+          "column": 66
+        }
+      ]
     }
   `,
   )
@@ -1708,10 +2368,14 @@ test('ast.conditionalExpression', () => {
         "whenTrue": "Unknown",
         "whenFalse": "NumericLiteral"
       },
-      "matchKind": "ConditionalExpression",
-      "text": "cond5 ? (cond6 ? 7 : 8) : 9",
-      "line": 5,
-      "column": 66
+      "matches": [
+        {
+          "kind": "ConditionalExpression",
+          "text": "cond5 ? (cond6 ? 7 : 8) : 9",
+          "line": 5,
+          "column": 66
+        }
+      ]
     }
   `)
 })
@@ -1736,10 +2400,14 @@ test('ast.binaryExpression', () => {
         "operatorPattern": "QuestionQuestionToken",
         "right": "NumericLiteral"
       },
-      "matchKind": "BinaryExpression",
-      "text": "cond2 ?? 3",
-      "line": 4,
-      "column": 36
+      "matches": [
+        {
+          "kind": "BinaryExpression",
+          "text": "cond2 ?? 3",
+          "line": 4,
+          "column": 36
+        }
+      ]
     }
   `,
   )
@@ -1760,10 +2428,14 @@ test('ast.binaryExpression', () => {
         "operatorPattern": "Unknown",
         "right": "Unknown"
       },
-      "matchKind": "BinaryExpression",
-      "text": "cond5 && (cond6 ?? 7)",
-      "line": 7,
-      "column": 115
+      "matches": [
+        {
+          "kind": "BinaryExpression",
+          "text": "cond5 && (cond6 ?? 7)",
+          "line": 7,
+          "column": 115
+        }
+      ]
     }
   `)
 })
@@ -1789,10 +2461,14 @@ describe('ast.importDeclaration', () => {
         "params": {
           "moduleSpecifier": "some-module"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import xxx from \\"some-module\\"",
-        "line": 2,
-        "column": 1
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import xxx from \\"some-module\\"",
+            "line": 2,
+            "column": 1
+          }
+        ]
       }
     `,
     )
@@ -1806,10 +2482,14 @@ describe('ast.importDeclaration', () => {
           "moduleSpecifier": "some-module",
           "name": "xxx"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import xxx from \\"some-module\\"",
-        "line": 2,
-        "column": 1
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import xxx from \\"some-module\\"",
+            "line": 2,
+            "column": 1
+          }
+        ]
       }
     `,
     )
@@ -1836,10 +2516,14 @@ describe('ast.importDeclaration', () => {
           "moduleSpecifier": "type-module",
           "name": "yyy"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import type yyy from \\"type-module\\"",
-        "line": 3,
-        "column": 37
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import type yyy from \\"type-module\\"",
+            "line": 3,
+            "column": 37
+          }
+        ]
       }
     `,
     )
@@ -1851,10 +2535,14 @@ describe('ast.importDeclaration', () => {
           "name": "yyy",
           "isTypeOnly": true
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import type yyy from \\"type-module\\"",
-        "line": 3,
-        "column": 37
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import type yyy from \\"type-module\\"",
+            "line": 3,
+            "column": 37
+          }
+        ]
       }
     `,
     )
@@ -1867,10 +2555,14 @@ describe('ast.importDeclaration', () => {
           "name": "Unknown",
           "isTypeOnly": true
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import type yyy from \\"type-module\\"",
-        "line": 3,
-        "column": 37
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import type yyy from \\"type-module\\"",
+            "line": 3,
+            "column": 37
+          }
+        ]
       }
     `,
     )
@@ -1895,10 +2587,14 @@ describe('ast.importDeclaration', () => {
         "params": {
           "moduleSpecifier": "with-bindings"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
-        "line": 4,
-        "column": 78
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
+            "line": 4,
+            "column": 78
+          }
+        ]
       }
     `)
 
@@ -1912,10 +2608,14 @@ describe('ast.importDeclaration', () => {
             "ccc"
           ]
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
-        "line": 4,
-        "column": 78
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
+            "line": 4,
+            "column": 78
+          }
+        ]
       }
     `)
     expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ast.rest(ast.any())))).toMatchInlineSnapshot(`
@@ -1924,10 +2624,14 @@ describe('ast.importDeclaration', () => {
           "moduleSpecifier": "with-bindings",
           "name": "RestType"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
-        "line": 4,
-        "column": 78
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
+            "line": 4,
+            "column": 78
+          }
+        ]
       }
     `)
     expect(
@@ -1944,10 +2648,14 @@ describe('ast.importDeclaration', () => {
           "moduleSpecifier": "with-bindings",
           "name": "TupleType"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
-        "line": 4,
-        "column": 78
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
+            "line": 4,
+            "column": 78
+          }
+        ]
       }
     `)
     expect(
@@ -1961,10 +2669,14 @@ describe('ast.importDeclaration', () => {
           "moduleSpecifier": "with-bindings",
           "name": "TupleType"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
-        "line": 4,
-        "column": 78
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa, bbb, ccc } from \\"with-bindings\\"",
+            "line": 4,
+            "column": 78
+          }
+        ]
       }
     `)
   })
@@ -1998,10 +2710,14 @@ describe('ast.importDeclaration', () => {
           "moduleSpecifier": "with-bindings",
           "name": "TupleType"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
-        "line": 5,
-        "column": 146
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+            "line": 5,
+            "column": 146
+          }
+        ]
       }
     `)
 
@@ -2016,10 +2732,14 @@ describe('ast.importDeclaration', () => {
             "ddd"
           ]
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
-        "line": 5,
-        "column": 146
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+            "line": 5,
+            "column": 146
+          }
+        ]
       }
     `,
     )
@@ -2048,30 +2768,38 @@ describe('ast.importDeclaration', () => {
               "Unknown"
             ]
           },
-          "matchKind": "ImportDeclaration",
-          "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
-          "line": 2,
-          "column": 1
+          "matches": [
+            {
+              "kind": "ImportDeclaration",
+              "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+              "line": 2,
+              "column": 1
+            }
+          ]
         }
       `)
 
     expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ['aaa', 'bbb', ast.identifier('ddd')])))
       .toMatchInlineSnapshot(`
-      Pattern<ImportDeclaration> {
-        "params": {
-          "moduleSpecifier": "with-bindings",
-          "name": [
-            "aaa",
-            "bbb",
-            "Identifier"
+        Pattern<ImportDeclaration> {
+          "params": {
+            "moduleSpecifier": "with-bindings",
+            "name": [
+              "aaa",
+              "bbb",
+              "Identifier"
+            ]
+          },
+          "matches": [
+            {
+              "kind": "ImportDeclaration",
+              "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+              "line": 2,
+              "column": 1
+            }
           ]
-        },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
-        "line": 2,
-        "column": 1
-      }
-    `)
+        }
+      `)
   })
 
   test('ast.importSpecifier with type only', () => {
@@ -2091,10 +2819,14 @@ describe('ast.importDeclaration', () => {
         "params": {
           "name": "aaa"
         },
-        "matchKind": "ImportSpecifier",
-        "text": "aaa",
-        "line": 2,
-        "column": 1
+        "matches": [
+          {
+            "kind": "ImportSpecifier",
+            "text": "aaa",
+            "line": 2,
+            "column": 1
+          }
+        ]
       }
     `)
     expect(traverse(sourceFile, ast.importSpecifier('aaa', undefined, true))).toMatchInlineSnapshot('undefined')
@@ -2104,10 +2836,14 @@ describe('ast.importDeclaration', () => {
         "params": {
           "name": "bbb"
         },
-        "matchKind": "ImportSpecifier",
-        "text": "type bbb",
-        "line": 2,
-        "column": 1
+        "matches": [
+          {
+            "kind": "ImportSpecifier",
+            "text": "type bbb",
+            "line": 2,
+            "column": 1
+          }
+        ]
       }
     `)
     expect(traverse(sourceFile, ast.importSpecifier('bbb', undefined, true))).toMatchInlineSnapshot(`
@@ -2116,10 +2852,14 @@ describe('ast.importDeclaration', () => {
           "name": "bbb",
           "isTypeOnly": true
         },
-        "matchKind": "ImportSpecifier",
-        "text": "type bbb",
-        "line": 2,
-        "column": 1
+        "matches": [
+          {
+            "kind": "ImportSpecifier",
+            "text": "type bbb",
+            "line": 2,
+            "column": 1
+          }
+        ]
       }
     `)
   })
@@ -2139,10 +2879,20 @@ describe('ast.importDeclaration', () => {
         "params": {
           "moduleSpecifier": "./mod"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa } from \\"./mod\\"",
-        "line": 2,
-        "column": 1
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa } from \\"./mod\\"",
+            "line": 2,
+            "column": 1
+          },
+          {
+            "kind": "ImportDeclaration",
+            "text": "import * from \\"./mod\\"",
+            "line": 4,
+            "column": 66
+          }
+        ]
       }
     `,
     )
@@ -2153,10 +2903,14 @@ describe('ast.importDeclaration', () => {
           "moduleSpecifier": "./mod",
           "name": "TupleType"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa } from \\"./mod\\"",
-        "line": 2,
-        "column": 1
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa } from \\"./mod\\"",
+            "line": 2,
+            "column": 1
+          }
+        ]
       }
     `,
     )
@@ -2172,10 +2926,14 @@ describe('ast.importDeclaration', () => {
       ),
     ).toMatchInlineSnapshot(`
       Pattern<ImportDeclaration> {
-        "matchKind": "ImportDeclaration",
-        "text": "import * from \\"./mod\\"",
-        "line": 4,
-        "column": 66
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import * from \\"./mod\\"",
+            "line": 4,
+            "column": 66
+          }
+        ]
       }
     `)
     expect(
@@ -2197,10 +2955,14 @@ describe('ast.importDeclaration', () => {
       ),
     ).toMatchInlineSnapshot(`
       Pattern<ImportDeclaration> {
-        "matchKind": "ImportDeclaration",
-        "text": "import * from \\"./mod\\"",
-        "line": 4,
-        "column": 66
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import * from \\"./mod\\"",
+            "line": 4,
+            "column": 66
+          }
+        ]
       }
     `)
   })
@@ -2227,10 +2989,14 @@ describe('ast.importDeclaration', () => {
             "moduleSpecifier": "with-bindings",
             "name": "SyntaxList"
           },
-          "matchKind": "ImportDeclaration",
-          "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
-          "line": 5,
-          "column": 146
+          "matches": [
+            {
+              "kind": "ImportDeclaration",
+              "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+              "line": 5,
+              "column": 146
+            }
+          ]
         }
       `)
 
@@ -2243,17 +3009,21 @@ describe('ast.importDeclaration', () => {
     // to match a list with any number of elements with given pattern
     expect(traverse(sourceFile, ast.importDeclaration('with-bindings', ast.tuple(ast.rest(ast.any())))))
       .toMatchInlineSnapshot(`
-      Pattern<ImportDeclaration> {
-        "params": {
-          "moduleSpecifier": "with-bindings",
-          "name": "TupleType"
-        },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
-        "line": 5,
-        "column": 146
-      }
-    `)
+        Pattern<ImportDeclaration> {
+          "params": {
+            "moduleSpecifier": "with-bindings",
+            "name": "TupleType"
+          },
+          "matches": [
+            {
+              "kind": "ImportDeclaration",
+              "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+              "line": 5,
+              "column": 146
+            }
+          ]
+        }
+      `)
     expect(
       traverse(
         sourceFile,
@@ -2282,10 +3052,14 @@ describe('ast.importDeclaration', () => {
           "moduleSpecifier": "with-bindings",
           "name": "SyntaxList"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
-        "line": 5,
-        "column": 146
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+            "line": 5,
+            "column": 146
+          }
+        ]
       }
     `)
     expect(
@@ -2305,10 +3079,14 @@ describe('ast.importDeclaration', () => {
           "moduleSpecifier": "with-bindings",
           "name": "SyntaxList"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
-        "line": 5,
-        "column": 146
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+            "line": 5,
+            "column": 146
+          }
+        ]
       }
     `)
 
@@ -2333,10 +3111,14 @@ describe('ast.importDeclaration', () => {
           "moduleSpecifier": "with-bindings",
           "name": "SyntaxList"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
-        "line": 5,
-        "column": 146
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+            "line": 5,
+            "column": 146
+          }
+        ]
       }
     `)
 
@@ -2359,10 +3141,14 @@ describe('ast.importDeclaration', () => {
           "moduleSpecifier": "with-bindings",
           "name": "SyntaxList"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
-        "line": 5,
-        "column": 146
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+            "line": 5,
+            "column": 146
+          }
+        ]
       }
     `)
 
@@ -2372,10 +3158,14 @@ describe('ast.importDeclaration', () => {
           "moduleSpecifier": "with-bindings",
           "name": "TupleType"
         },
-        "matchKind": "ImportDeclaration",
-        "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
-        "line": 5,
-        "column": 146
+        "matches": [
+          {
+            "kind": "ImportDeclaration",
+            "text": "import { aaa, bbb, ccc as ddd } from \\"with-bindings\\"",
+            "line": 5,
+            "column": 146
+          }
+        ]
       }
     `)
   })
@@ -2395,10 +3185,26 @@ describe('ast.exportDeclaration', () => {
     expect(traverse(sourceFile, ast.exportDeclaration())).toMatchInlineSnapshot(`
       Pattern<ExportDeclaration> {
         "params": {},
-        "matchKind": "ExportDeclaration",
-        "text": "export type { yyy }",
-        "line": 3,
-        "column": 26
+        "matches": [
+          {
+            "kind": "ExportDeclaration",
+            "text": "export type { yyy }",
+            "line": 3,
+            "column": 26
+          },
+          {
+            "kind": "ExportDeclaration",
+            "text": "export { aaa, type bbb, ccc as ddd }",
+            "line": 4,
+            "column": 52
+          },
+          {
+            "kind": "ExportDeclaration",
+            "text": "export * from \\"./namespaced\\"",
+            "line": 5,
+            "column": 95
+          }
+        ]
       }
     `)
 
@@ -2411,10 +3217,14 @@ describe('ast.exportDeclaration', () => {
             "ddd"
           ]
         },
-        "matchKind": "ExportDeclaration",
-        "text": "export { aaa, type bbb, ccc as ddd }",
-        "line": 4,
-        "column": 52
+        "matches": [
+          {
+            "kind": "ExportDeclaration",
+            "text": "export { aaa, type bbb, ccc as ddd }",
+            "line": 4,
+            "column": 52
+          }
+        ]
       }
     `)
 
@@ -2438,10 +3248,14 @@ describe('ast.exportDeclaration', () => {
             "yyy"
           ]
         },
-        "matchKind": "ExportDeclaration",
-        "text": "export type { yyy }",
-        "line": 3,
-        "column": 26
+        "matches": [
+          {
+            "kind": "ExportDeclaration",
+            "text": "export type { yyy }",
+            "line": 3,
+            "column": 26
+          }
+        ]
       }
     `)
     expect(traverse(sourceFile, ast.exportDeclaration(['yyy'], false))).toMatchInlineSnapshot('undefined')
@@ -2453,10 +3267,14 @@ describe('ast.exportDeclaration', () => {
           ],
           "isTypeOnly": true
         },
-        "matchKind": "ExportDeclaration",
-        "text": "export type { yyy }",
-        "line": 3,
-        "column": 26
+        "matches": [
+          {
+            "kind": "ExportDeclaration",
+            "text": "export type { yyy }",
+            "line": 3,
+            "column": 26
+          }
+        ]
       }
     `)
 
@@ -2466,10 +3284,14 @@ describe('ast.exportDeclaration', () => {
           "name": "Unknown",
           "isTypeOnly": true
         },
-        "matchKind": "ExportDeclaration",
-        "text": "export type { yyy }",
-        "line": 3,
-        "column": 26
+        "matches": [
+          {
+            "kind": "ExportDeclaration",
+            "text": "export type { yyy }",
+            "line": 3,
+            "column": 26
+          }
+        ]
       }
     `)
   })
@@ -2490,10 +3312,14 @@ describe('ast.exportDeclaration', () => {
             "Unknown"
           ]
         },
-        "matchKind": "ExportDeclaration",
-        "text": "export { aaa, bbb, ccc as ddd }",
-        "line": 2,
-        "column": 1
+        "matches": [
+          {
+            "kind": "ExportDeclaration",
+            "text": "export { aaa, bbb, ccc as ddd }",
+            "line": 2,
+            "column": 1
+          }
+        ]
       }
     `)
 
@@ -2506,10 +3332,14 @@ describe('ast.exportDeclaration', () => {
             "Identifier"
           ]
         },
-        "matchKind": "ExportDeclaration",
-        "text": "export { aaa, bbb, ccc as ddd }",
-        "line": 2,
-        "column": 1
+        "matches": [
+          {
+            "kind": "ExportDeclaration",
+            "text": "export { aaa, bbb, ccc as ddd }",
+            "line": 2,
+            "column": 1
+          }
+        ]
       }
     `)
   })
@@ -2530,10 +3360,14 @@ describe('ast.exportDeclaration', () => {
           "moduleSpecifier": "./mod",
           "name": "SyntaxList"
         },
-        "matchKind": "ExportDeclaration",
-        "text": "export { aaa, bbb, ccc as ddd } from \\"./mod\\"",
-        "line": 2,
-        "column": 1
+        "matches": [
+          {
+            "kind": "ExportDeclaration",
+            "text": "export { aaa, bbb, ccc as ddd } from \\"./mod\\"",
+            "line": 2,
+            "column": 1
+          }
+        ]
       }
     `)
   })
@@ -2553,10 +3387,14 @@ describe('ast.exportDeclaration', () => {
         "params": {
           "moduleSpecifier": "./mod"
         },
-        "matchKind": "ExportDeclaration",
-        "text": "export * from \\"./mod\\"",
-        "line": 4,
-        "column": 69
+        "matches": [
+          {
+            "kind": "ExportDeclaration",
+            "text": "export * from \\"./mod\\"",
+            "line": 4,
+            "column": 69
+          }
+        ]
       }
     `,
     )
@@ -2572,10 +3410,14 @@ describe('ast.exportDeclaration', () => {
       ),
     ).toMatchInlineSnapshot(`
       Pattern<ExportDeclaration> {
-        "matchKind": "ExportDeclaration",
-        "text": "export * from \\"./mod\\"",
-        "line": 4,
-        "column": 69
+        "matches": [
+          {
+            "kind": "ExportDeclaration",
+            "text": "export * from \\"./mod\\"",
+            "line": 4,
+            "column": 69
+          }
+        ]
       }
     `)
     expect(
@@ -2596,10 +3438,14 @@ describe('ast.exportDeclaration', () => {
       ),
     ).toMatchInlineSnapshot(`
       Pattern<ExportDeclaration> {
-        "matchKind": "ExportDeclaration",
-        "text": "export * from \\"./mod\\"",
-        "line": 4,
-        "column": 69
+        "matches": [
+          {
+            "kind": "ExportDeclaration",
+            "text": "export * from \\"./mod\\"",
+            "line": 4,
+            "column": 69
+          }
+        ]
       }
     `)
     expect(
@@ -2612,10 +3458,14 @@ describe('ast.exportDeclaration', () => {
       ),
     ).toMatchInlineSnapshot(`
       Pattern<ExportDeclaration> {
-        "matchKind": "ExportDeclaration",
-        "text": "export * from \\"./mod\\"",
-        "line": 4,
-        "column": 69
+        "matches": [
+          {
+            "kind": "ExportDeclaration",
+            "text": "export * from \\"./mod\\"",
+            "line": 4,
+            "column": 69
+          }
+        ]
       }
     `)
   })
@@ -2636,10 +3486,14 @@ test('ast.exportAssignment', () => {
       "params": {
         "expression": "Identifier"
       },
-      "matchKind": "ExportAssignment",
-      "text": "export default xxx;",
-      "line": 3,
-      "column": 44
+      "matches": [
+        {
+          "kind": "ExportAssignment",
+          "text": "export default xxx;",
+          "line": 3,
+          "column": 44
+        }
+      ]
     }
   `)
   expect(traverse(sourceFile, ast.exportAssignment(ast.identifier('xxx'), true))).toMatchInlineSnapshot('undefined')
@@ -2651,10 +3505,14 @@ test('ast.exportAssignment', () => {
         "expression": "Identifier",
         "isExportEquals": true
       },
-      "matchKind": "ExportAssignment",
-      "text": "export = yyy;",
-      "line": 4,
-      "column": 66
+      "matches": [
+        {
+          "kind": "ExportAssignment",
+          "text": "export = yyy;",
+          "line": 4,
+          "column": 66
+        }
+      ]
     }
   `)
 })
