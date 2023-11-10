@@ -14,7 +14,7 @@ export const traverse = <TPattern extends Pattern>(
   let match: Pattern | undefined
   sourceFile.forEachDescendant((node, traversal) => {
     // console.log(node.getKindName())
-    if (pattern.matchFn(node)) {
+    if (pattern.match(node)) {
       match = pattern
       stopOnMatch && traversal.stop()
     }

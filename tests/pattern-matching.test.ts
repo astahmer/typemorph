@@ -329,7 +329,7 @@ test('ast.each', () => {
       ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
         properties: ast.every(
           ast.when((node) => {
-            return incompleteUnion.matchFn(node)
+            return incompleteUnion.match(node)
           }),
           { min: 1 },
         ),
@@ -344,7 +344,7 @@ test('ast.each', () => {
       sourceFile,
       ast.node(ts.SyntaxKind.ObjectLiteralExpression, {
         properties: ast.every(
-          ast.when((node) => union.matchFn(node)),
+          ast.when((node) => union.match(node)),
           { min: 1 },
         ),
       }),
@@ -482,6 +482,226 @@ test('ast.any', () => {
           "text": "",
           "line": 5,
           "column": 77
+        }
+      ]
+    }
+  `)
+})
+
+test('ast.not', () => {
+  const code = `
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+    `
+
+  const sourceFile = parse(code)
+
+  expect(traverse(sourceFile, ast.not(ast.any()))).toMatchInlineSnapshot('undefined')
+
+  expect(
+    traverse(sourceFile, ast.intersection(ast.node(SyntaxKind.CallExpression), ast.not(ast.callExpression('someFn')))),
+  ).toMatchInlineSnapshot(`
+    Pattern<IntersectionType> {
+      "params": {
+        "patterns": [
+          "CallExpression",
+          "Unknown"
+        ]
+      },
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "CallExpression",
+          "text": "find({ id: 1 })",
+          "line": 4,
+          "column": 53
+        }
+      ]
+    }
+  `)
+})
+
+test('ast.contains', () => {
+  const code = `
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+        if (true) {
+          const oui = "str
+        }
+    `
+
+  const sourceFile = parse(code)
+
+  expect(traverse(sourceFile, ast.contains(ast.literal('str')))).toMatchInlineSnapshot(`
+    Pattern<Unknown> {
+      "params": {
+        "pattern": "StringLiteral"
+      },
+      "matches": [
+        {
+          "kind": "ExpressionStatement",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "IfStatement",
+          "text": "if (true) {\\n          const oui = \\"str\\n        }",
+          "line": 5,
+          "column": 77
+        },
+        {
+          "kind": "Block",
+          "text": "{\\n          const oui = \\"str\\n        }",
+          "line": 5,
+          "column": 77
+        },
+        {
+          "kind": "VariableStatement",
+          "text": "const oui = \\"str",
+          "line": 6,
+          "column": 97
+        },
+        {
+          "kind": "VariableDeclarationList",
+          "text": "const oui = \\"str",
+          "line": 6,
+          "column": 97
+        },
+        {
+          "kind": "VariableDeclaration",
+          "text": "oui = \\"str",
+          "line": 6,
+          "column": 97
+        }
+      ]
+    }
+  `)
+
+  expect(traverse(sourceFile, ast.contains(ast.literal('str'), ast.node(SyntaxKind.VariableStatement))))
+    .toMatchInlineSnapshot(`
+    Pattern<Unknown> {
+      "params": {
+        "pattern": "StringLiteral"
+      },
+      "matches": [
+        {
+          "kind": "ExpressionStatement",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "VariableStatement",
+          "text": "const oui = \\"str",
+          "line": 6,
+          "column": 97
+        },
+        {
+          "kind": "VariableDeclarationList",
+          "text": "const oui = \\"str",
+          "line": 6,
+          "column": 97
+        },
+        {
+          "kind": "VariableDeclaration",
+          "text": "oui = \\"str",
+          "line": 6,
+          "column": 97
+        }
+      ]
+    }
+  `)
+
+  expect(traverse(sourceFile, ast.intersection(ast.node(SyntaxKind.CallExpression), ast.contains(ast.literal(1)))))
+    .toMatchInlineSnapshot(`
+    Pattern<IntersectionType> {
+      "params": {
+        "patterns": [
+          "CallExpression",
+          "Unknown"
+        ]
+      },
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "CallExpression",
+          "text": "find({ id: 1 })",
+          "line": 4,
+          "column": 53
+        }
+      ]
+    }
+  `)
+
+  expect(
+    traverse(
+      sourceFile,
+      ast.intersection(
+        ast.node(SyntaxKind.CallExpression),
+        ast.contains(ast.literal(1), ast.kind(SyntaxKind.ObjectLiteralExpression)),
+      ),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<IntersectionType> {
+      "params": {
+        "patterns": [
+          "CallExpression",
+          "Unknown"
+        ]
+      },
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 2,
+          "column": 1
+        }
+      ]
+    }
+  `)
+
+  expect(
+    traverse(
+      sourceFile,
+      ast.node(SyntaxKind.CallExpression, {
+        arguments: ast.some(
+          ast.intersection(ast.kind(SyntaxKind.ObjectLiteralExpression), ast.contains(ast.literal(1))),
+        ),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<CallExpression> {
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "find({ id: 1 })",
+          "line": 4,
+          "column": 53
         }
       ]
     }
@@ -3165,7 +3385,7 @@ describe('ast.importDeclaration', () => {
           ast.nodeList(
             ast.refine(ast.any(), (list) => {
               if (Array.isArray(list)) {
-                return list.every((item) => union.matchFn(item)) ? list : undefined
+                return list.every((item) => union.match(item)) ? list : undefined
               }
             }),
           ),
@@ -3196,7 +3416,7 @@ describe('ast.importDeclaration', () => {
           'with-bindings',
           ast.refine(ast.nodeList(), (list) => {
             if (Array.isArray(list)) {
-              return tuple.matchFn(list)
+              return tuple.match(list)
             }
           }),
         ),

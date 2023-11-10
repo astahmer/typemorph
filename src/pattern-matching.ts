@@ -39,7 +39,7 @@ export class Pattern<
     this.params = params as Params
   }
 
-  matchFn(node: Node | Node[]) {
+  match(node: Node | Node[]) {
     const result = this.assert(node)
     // Boolean(result) &&
     //   console.log(0, 'matchFn', {
@@ -140,7 +140,7 @@ export class ast {
             prop = booleans[prop ? 'true' : 'false'](node.getSourceFile())
           }
 
-          const match = (pattern as Pattern<TKind>).matchFn(prop)
+          const match = (pattern as Pattern<TKind>).match(prop)
           // console.log(3, key, Boolean(match))
           if (!match) {
             return false
@@ -165,7 +165,7 @@ export class ast {
         if (!Array.isArray(nodeList)) return
         if (nodeList.length < _opts.min) return
         if (_opts.max && nodeList.length > _opts.max) return
-        return pattern ? pattern.matchFn(nodeList) : true
+        return pattern ? pattern.match(nodeList) : true
       },
     })
   }
@@ -183,7 +183,7 @@ export class ast {
         if (!Array.isArray(nodeList)) return
         if (nodeList.length < _opts.min) return
         if (_opts.max && nodeList.length > _opts.max) return
-        return nodeList.every((child) => pattern.matchFn(child))
+        return nodeList.every((child) => pattern.match(child))
       },
     })
   }
@@ -201,7 +201,7 @@ export class ast {
         if (!Array.isArray(nodeList)) return
         if (nodeList.length < _opts.min) return
         if (_opts.max && nodeList.length > _opts.max) return
-        return nodeList.some((child) => pattern.matchFn(child))
+        return nodeList.some((child) => pattern.match(child))
       },
     })
   }
@@ -214,13 +214,51 @@ export class ast {
       params: { pattern },
       kind: SyntaxKind.JSDocUnknownType as any,
       match: (node) => {
-        return pattern ? pattern.matchFn(node) : true
+        return pattern ? pattern.match(node) : true
       },
     })
   }
 
   static any() {
     return new Pattern({ kind: SyntaxKind.Unknown, match: () => true })
+  }
+
+  static not<TPattern extends Pattern>(pattern: TPattern) {
+    return new Pattern({
+      params: { pattern },
+      kind: SyntaxKind.Unknown,
+      match: (node) => {
+        return !pattern.match(node)
+      },
+    })
+  }
+
+  static contains<TPattern extends Pattern>(pattern: TPattern, until?: TPattern) {
+    const seen = new WeakSet()
+
+    return new Pattern({
+      params: { pattern },
+      kind: SyntaxKind.Unknown,
+      match: (node) => {
+        if (Array.isArray(node)) return
+        return node.forEachDescendant((child, traversal) => {
+          if (seen.has(child)) return
+
+          if (until && until.match(child)) {
+            traversal.stop()
+            return
+          }
+
+          const match = pattern.match(child)
+          if (match) {
+            traversal.stop()
+            return node
+          }
+
+          seen.add(child)
+        })
+      },
+    })
   }
 
   static when<TInput = Node | Node[]>(condition: (node: TInput) => boolean | Node | Node[] | undefined) {
@@ -237,7 +275,7 @@ export class ast {
     return new Pattern<ReturnType<RNode['getKind']>, RNode>({
       kind: pattern.kind as any,
       match: (node) => {
-        if (!pattern.matchFn(node)) return
+        if (!pattern.match(node)) return
         return transform(node as PatternNode<TPattern>)
       },
     })
@@ -348,7 +386,7 @@ export class ast {
     // If the last pattern is a rest pattern, remove it from the list and use it as the rest pattern
     // When the nodeList length has reached the number of patterns, use the rest pattern for the remaining nodes
     if (last instanceof Pattern && last.params?.isRest) {
-      const restPattern = patterns.pop()?.params?.pattern
+      const restPattern = patterns.pop()?.params?.pattern as Pattern
       return new Pattern({
         params: { patterns, restPattern },
         kind: SyntaxKind.TupleType as any,
@@ -358,9 +396,9 @@ export class ast {
           return nodeList.every((child, index) => {
             const pattern = patterns[index] ?? restPattern
             if (!patterns[index]) {
-              return restPattern.matchFn(child)
+              return restPattern.match(child)
             }
-            return pattern.matchFn(child)
+            return pattern.match(child)
           })
         },
       })
@@ -376,7 +414,7 @@ export class ast {
         return nodeList.every((child, index) => {
           const pattern = patterns[index]
           if (!pattern) return
-          return pattern.matchFn(child)
+          return pattern.match(child)
         })
       },
     })
@@ -391,7 +429,7 @@ export class ast {
       kind: SyntaxKind.RestType,
       match: (nodeList) => {
         if (!Array.isArray(nodeList)) return
-        return nodeList.every((child) => pattern.matchFn(child))
+        return nodeList.every((child) => pattern.match(child))
       },
     })
   }
@@ -426,7 +464,7 @@ export class ast {
       params: { patterns },
       kind: SyntaxKind.UnionType as any,
       match: (node) => {
-        return patterns.some((pattern) => pattern.matchFn(node))
+        return patterns.some((pattern) => pattern.match(node))
       },
     })
   }
@@ -436,7 +474,7 @@ export class ast {
       params: { patterns },
       kind: SyntaxKind.IntersectionType as any,
       match: (nodeList) => {
-        return patterns.every((pattern) => pattern.matchFn(nodeList))
+        return patterns.every((pattern) => pattern.match(nodeList))
       },
     })
   }
@@ -472,7 +510,7 @@ export class ast {
 
         const elements = node.getElements()
         if (elements.length === 0) return false
-        return elements.every((child) => pattern.matchFn(child))
+        return elements.every((child) => pattern.match(child))
       },
     })
   }
@@ -510,7 +548,7 @@ export class ast {
           return propPath === name
         }
 
-        return namePattern.matchFn(node)
+        return namePattern.match(node)
       },
     })
   }
@@ -539,7 +577,7 @@ export class ast {
       kind: SyntaxKind.Unknown,
       match: (node) => {
         if (Array.isArray(node)) return
-        return pattern.matchFn(unwrapExpression(node))
+        return pattern.match(unwrapExpression(node))
       },
     })
   }
@@ -597,7 +635,7 @@ export class ast {
         if (Array.isArray(node)) return
         if (!Node.isImportDeclaration(node)) return
         if (withTypeOnly && node.isTypeOnly() !== isTypeOnly) return
-        return pattern.matchFn(node)
+        return pattern.match(node)
       },
     })
   }
@@ -640,7 +678,7 @@ export class ast {
         if (Array.isArray(node)) return
         if (!Node.isExportDeclaration(node)) return
         if (withTypeOnly && node.isTypeOnly() !== isTypeOnly) return
-        return pattern.matchFn(node)
+        return pattern.match(node)
       },
     })
   }
@@ -710,7 +748,7 @@ const getArguments = (...args: Pattern[]) => {
 const isPattern = (value: any): value is Pattern => value instanceof Pattern
 const single = (pattern: Pattern) => (node: Node | Node[]) => {
   if (Array.isArray(node)) return
-  return Boolean(pattern.matchFn(node))
+  return Boolean(pattern.match(node))
 }
 
 type NamePattern = string | Pattern

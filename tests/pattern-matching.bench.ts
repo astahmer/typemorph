@@ -10,7 +10,7 @@ const parse = (code: string) =>
 const traverse = <TPattern extends Pattern>(sourceFile: SourceFile, pattern: TPattern) => {
   let match: Pattern | undefined
   sourceFile.forEachDescendant((node, traversal) => {
-    if (pattern.matchFn(node)) {
+    if (pattern.match(node)) {
       match = pattern
       traversal.stop()
     }
