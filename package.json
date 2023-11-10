@@ -5,6 +5,7 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest",
+    "bench": "vitest bench",
     "typecheck": "tsc --noEmit",
     "release": "changeset publish"
   },
