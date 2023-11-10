@@ -88,13 +88,15 @@ export class Pattern<
     if (!this.params) return {}
 
     const captures = {} as Record<string, Pattern>
-    const process = (obj: Record<string, any>) => {
+    const stack = [this.params]
+
+    while (stack.length > 0) {
+      const obj = stack.pop() as Record<string, any>
+
       for (const [key, value] of Object.entries(obj)) {
         if (!value) continue
-        console.log({ key })
 
         if (value instanceof Pattern) {
-          // console.log(2, value)
           if (value.refName) {
             captures[value.refName] = value
           }
@@ -106,7 +108,6 @@ export class Pattern<
 
         if (Array.isArray(value)) {
           for (const p of value) {
-            // console.log(1, p.toString())
             if (p instanceof Pattern) {
               if (p.refName) {
                 captures[p.refName] = p
@@ -121,12 +122,10 @@ export class Pattern<
         }
 
         if (typeof value === 'object' && value !== null && !Node.isNode(value)) {
-          process(value)
+          stack.push(value)
         }
       }
     }
-
-    process(this.params)
 
     return captures
   }

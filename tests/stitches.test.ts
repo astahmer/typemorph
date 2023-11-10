@@ -81,6 +81,9 @@ describe('stitches', () => {
 
     expect(filter(sourceFile, ast.node(SyntaxKind.ObjectBindingPattern))).toMatchInlineSnapshot(`
       Pattern<ObjectBindingPattern> {
+        "params": {
+          "type": 206
+        },
         "matches": [
           {
             "kind": "ObjectBindingPattern",
@@ -111,6 +114,12 @@ describe('stitches', () => {
       ),
     ).toMatchInlineSnapshot(`
       Pattern<ObjectBindingPattern> {
+        "params": {
+          "type": 206,
+          "props": {
+            "elements": "SyntaxList"
+          }
+        },
         "matches": [
           {
             "kind": "ObjectBindingPattern",
