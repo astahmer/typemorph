@@ -14,6 +14,9 @@ test('ast.node', () => {
 
   expect(traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression))).toMatchInlineSnapshot(`
     Pattern<CallExpression> {
+      "params": {
+        "type": 213
+      },
       "matches": [
         {
           "kind": "CallExpression",
@@ -70,6 +73,12 @@ test('ast.nodeList', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
+      "params": {
+        "type": 210,
+        "props": {
+          "properties": "SyntaxList"
+        }
+      },
       "matches": [
         {
           "kind": "ObjectLiteralExpression",
@@ -108,6 +117,12 @@ test('ast.nodeList', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
+      "params": {
+        "type": 210,
+        "props": {
+          "properties": "SyntaxList"
+        }
+      },
       "matches": [
         {
           "kind": "ObjectLiteralExpression",
@@ -132,6 +147,12 @@ test('ast.nodeList', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
+      "params": {
+        "type": 210,
+        "props": {
+          "properties": "SyntaxList"
+        }
+      },
       "matches": [
         {
           "kind": "ObjectLiteralExpression",
@@ -164,6 +185,12 @@ test('ast.each - list options', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
+      "params": {
+        "type": 210,
+        "props": {
+          "properties": "SyntaxList"
+        }
+      },
       "matches": [
         {
           "kind": "ObjectLiteralExpression",
@@ -195,6 +222,12 @@ test('ast.each - list options', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
+      "params": {
+        "type": 210,
+        "props": {
+          "properties": "SyntaxList"
+        }
+      },
       "matches": [
         {
           "kind": "ObjectLiteralExpression",
@@ -220,6 +253,12 @@ test('ast.each - list options', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
+      "params": {
+        "type": 210,
+        "props": {
+          "properties": "SyntaxList"
+        }
+      },
       "matches": [
         {
           "kind": "ObjectLiteralExpression",
@@ -252,6 +291,12 @@ test('ast.each', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
+      "params": {
+        "type": 210,
+        "props": {
+          "properties": "SyntaxList"
+        }
+      },
       "matches": [
         {
           "kind": "ObjectLiteralExpression",
@@ -297,6 +342,12 @@ test('ast.each', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
+      "params": {
+        "type": 210,
+        "props": {
+          "properties": "SyntaxList"
+        }
+      },
       "matches": [
         {
           "kind": "ObjectLiteralExpression",
@@ -351,6 +402,12 @@ test('ast.each', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<ObjectLiteralExpression> {
+      "params": {
+        "type": 210,
+        "props": {
+          "properties": "SyntaxList"
+        }
+      },
       "matches": [
         {
           "kind": "ObjectLiteralExpression",
@@ -593,44 +650,45 @@ test('ast.contains', () => {
 
   expect(traverse(sourceFile, ast.contains(ast.literal('str'), ast.node(SyntaxKind.VariableStatement))))
     .toMatchInlineSnapshot(`
-    Pattern<Unknown> {
-      "params": {
-        "pattern": "StringLiteral"
-      },
-      "matches": [
-        {
-          "kind": "ExpressionStatement",
-          "text": "another(1, true, 3, \\"str\\")",
-          "line": 2,
-          "column": 1
+      Pattern<Unknown> {
+        "params": {
+          "pattern": "StringLiteral",
+          "until": "VariableStatement"
         },
-        {
-          "kind": "CallExpression",
-          "text": "another(1, true, 3, \\"str\\")",
-          "line": 2,
-          "column": 1
-        },
-        {
-          "kind": "VariableStatement",
-          "text": "const oui = \\"str",
-          "line": 6,
-          "column": 97
-        },
-        {
-          "kind": "VariableDeclarationList",
-          "text": "const oui = \\"str",
-          "line": 6,
-          "column": 97
-        },
-        {
-          "kind": "VariableDeclaration",
-          "text": "oui = \\"str",
-          "line": 6,
-          "column": 97
-        }
-      ]
-    }
-  `)
+        "matches": [
+          {
+            "kind": "ExpressionStatement",
+            "text": "another(1, true, 3, \\"str\\")",
+            "line": 2,
+            "column": 1
+          },
+          {
+            "kind": "CallExpression",
+            "text": "another(1, true, 3, \\"str\\")",
+            "line": 2,
+            "column": 1
+          },
+          {
+            "kind": "VariableStatement",
+            "text": "const oui = \\"str",
+            "line": 6,
+            "column": 97
+          },
+          {
+            "kind": "VariableDeclarationList",
+            "text": "const oui = \\"str",
+            "line": 6,
+            "column": 97
+          },
+          {
+            "kind": "VariableDeclaration",
+            "text": "oui = \\"str",
+            "line": 6,
+            "column": 97
+          }
+        ]
+      }
+    `)
 
   expect(traverse(sourceFile, ast.intersection(ast.node(SyntaxKind.CallExpression), ast.contains(ast.literal(1)))))
     .toMatchInlineSnapshot(`
@@ -696,6 +754,12 @@ test('ast.contains', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<CallExpression> {
+      "params": {
+        "type": 213,
+        "props": {
+          "arguments": "SyntaxList"
+        }
+      },
       "matches": [
         {
           "kind": "CallExpression",
@@ -704,6 +768,175 @@ test('ast.contains', () => {
           "column": 53
         }
       ]
+    }
+  `)
+})
+
+test('pattern.ref(xxx) / pattern.collectCaptures()', () => {
+  const code = `
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+    `
+
+  const sourceFile = parse(code)
+  const pattern = traverse(
+    sourceFile,
+    ast.intersection(
+      ast.node(SyntaxKind.CallExpression).ref('fn'),
+      ast.contains(ast.literal(1).ref('ONE'), ast.kind(SyntaxKind.ObjectLiteralExpression).ref('obj')),
+    ),
+  )
+
+  expect(pattern?.collectCaptures()).toMatchInlineSnapshot(`
+    {
+      "ONE": Pattern<NumericLiteral> {
+      "params": {
+        "value": 1
+      },
+      "refName": "ONE",
+      "matches": [
+        {
+          "kind": "NumericLiteral",
+          "text": "1",
+          "line": 2,
+          "column": 1
+        }
+      ]
+    },
+      "fn": Pattern<CallExpression> {
+      "params": {
+        "type": 213
+      },
+      "refName": "fn",
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "CallExpression",
+          "text": "someFn()",
+          "line": 3,
+          "column": 36
+        },
+        {
+          "kind": "CallExpression",
+          "text": "find({ id: 1 })",
+          "line": 4,
+          "column": 53
+        }
+      ]
+    },
+      "obj": Pattern<ObjectLiteralExpression> {
+      "refName": "obj",
+      "matches": [
+        {
+          "kind": "ObjectLiteralExpression",
+          "text": "{ id: 1 }",
+          "line": 4,
+          "column": 53
+        }
+      ]
+    },
+    }
+  `)
+})
+
+test('ast.ref(xxx) / pattern.collectCaptures()', () => {
+  const code = `
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+    `
+
+  const sourceFile = parse(code)
+  const pattern = traverse(
+    sourceFile,
+    ast.node(SyntaxKind.CallExpression, {
+      expression: ast.ref('fn'),
+      arguments: ast.tuple(ast.ref('arg1'), ast.ref('arg2'), ast.rest(ast.ref('rest'))),
+    }),
+  )
+
+  expect(pattern?.collectCaptures()).toMatchInlineSnapshot(`
+    {
+      "arg1": Pattern<JSDocUnknownType> {
+      "params": {
+        "pattern": "Unknown"
+      },
+      "refName": "arg1",
+      "matches": [
+        {
+          "kind": "NumericLiteral",
+          "text": "1",
+          "line": 2,
+          "column": 1
+        }
+      ]
+    },
+      "arg2": Pattern<JSDocUnknownType> {
+      "params": {
+        "pattern": "Unknown"
+      },
+      "refName": "arg2",
+      "matches": [
+        {
+          "kind": "TrueKeyword",
+          "text": "true",
+          "line": 2,
+          "column": 1
+        }
+      ]
+    },
+      "fn": Pattern<JSDocUnknownType> {
+      "params": {
+        "pattern": "Unknown"
+      },
+      "refName": "fn",
+      "matches": [
+        {
+          "kind": "Identifier",
+          "text": "another",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "Identifier",
+          "text": "someFn",
+          "line": 3,
+          "column": 36
+        },
+        {
+          "kind": "Identifier",
+          "text": "find",
+          "line": 4,
+          "column": 53
+        }
+      ]
+    },
+      "rest": Pattern<JSDocUnknownType> {
+      "params": {
+        "pattern": "Unknown"
+      },
+      "refName": "rest",
+      "matches": [
+        {
+          "kind": "NumericLiteral",
+          "text": "3",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "kind": "StringLiteral",
+          "text": "\\"str\\"",
+          "line": 2,
+          "column": 1
+        }
+      ]
+    },
     }
   `)
 })
@@ -724,6 +957,7 @@ test('ast.when', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<Unknown> {
+      "params": {},
       "matches": [
         {
           "kind": "Identifier",
@@ -752,6 +986,9 @@ test('ast.refine', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<CallExpression> {
+      "params": {
+        "pattern": "CallExpression"
+      },
       "matches": [
         {
           "kind": "ObjectLiteralExpression",
@@ -786,6 +1023,12 @@ test('ast.maybeNode', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<CallExpression> {
+      "params": {
+        "type": 213,
+        "props": {
+          "typeArguments": "TupleType"
+        }
+      },
       "matches": [
         {
           "kind": "CallExpression",
@@ -812,6 +1055,12 @@ test('ast.maybeNode', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<CallExpression> {
+      "params": {
+        "type": 213,
+        "props": {
+          "typeArguments": "JSDocUnknownType"
+        }
+      },
       "matches": [
         {
           "kind": "CallExpression",
@@ -917,6 +1166,7 @@ test('ast.literal', () => {
 
   expect(traverse(sourceFile, ast.literal())).toMatchInlineSnapshot(`
     Pattern<Unknown> {
+      "params": {},
       "matches": [
         {
           "kind": "StringLiteral",
@@ -1279,6 +1529,12 @@ test('ast.tuple', () => {
 
   expect(pattern).toMatchInlineSnapshot(`
     Pattern<CallExpression> {
+      "params": {
+        "type": 213,
+        "props": {
+          "arguments": "TupleType"
+        }
+      },
       "matches": [
         {
           "kind": "CallExpression",
@@ -1562,6 +1818,12 @@ describe('ast.callExpression', () => {
     expect(traverse(sourceFile, ast.node(ts.SyntaxKind.CallExpression, { expression: ast.identifier('someFn') })))
       .toMatchInlineSnapshot(`
         Pattern<CallExpression> {
+          "params": {
+            "type": 213,
+            "props": {
+              "expression": "Identifier"
+            }
+          },
           "matches": [
             {
               "kind": "CallExpression",
@@ -2568,6 +2830,12 @@ test('ast.unwrap', () => {
     ),
   ).toMatchInlineSnapshot(`
     Pattern<CallExpression> {
+      "params": {
+        "type": 213,
+        "props": {
+          "arguments": "TupleType"
+        }
+      },
       "matches": [
         {
           "kind": "CallExpression",
@@ -3103,7 +3371,8 @@ describe('ast.importDeclaration', () => {
     expect(traverse(sourceFile, ast.importSpecifier('aaa'))).toMatchInlineSnapshot(`
       Pattern<ImportSpecifier> {
         "params": {
-          "name": "aaa"
+          "name": "aaa",
+          "pattern": "ImportSpecifier"
         },
         "matches": [
           {
@@ -3120,7 +3389,8 @@ describe('ast.importDeclaration', () => {
     expect(traverse(sourceFile, ast.importSpecifier('bbb'))).toMatchInlineSnapshot(`
       Pattern<ImportSpecifier> {
         "params": {
-          "name": "bbb"
+          "name": "bbb",
+          "pattern": "ImportSpecifier"
         },
         "matches": [
           {
@@ -3136,7 +3406,8 @@ describe('ast.importDeclaration', () => {
       Pattern<ImportSpecifier> {
         "params": {
           "name": "bbb",
-          "isTypeOnly": true
+          "isTypeOnly": true,
+          "pattern": "ImportSpecifier"
         },
         "matches": [
           {
@@ -3212,6 +3483,9 @@ describe('ast.importDeclaration', () => {
       ),
     ).toMatchInlineSnapshot(`
       Pattern<ImportDeclaration> {
+        "params": {
+          "pattern": "ImportDeclaration"
+        },
         "matches": [
           {
             "kind": "ImportDeclaration",
@@ -3241,6 +3515,9 @@ describe('ast.importDeclaration', () => {
       ),
     ).toMatchInlineSnapshot(`
       Pattern<ImportDeclaration> {
+        "params": {
+          "pattern": "ImportDeclaration"
+        },
         "matches": [
           {
             "kind": "ImportDeclaration",
@@ -3470,7 +3747,9 @@ describe('ast.exportDeclaration', () => {
 
     expect(traverse(sourceFile, ast.exportDeclaration())).toMatchInlineSnapshot(`
       Pattern<ExportDeclaration> {
-        "params": {},
+        "params": {
+          "pattern": "ExportDeclaration"
+        },
         "matches": [
           {
             "kind": "ExportDeclaration",
@@ -3501,7 +3780,8 @@ describe('ast.exportDeclaration', () => {
             "aaa",
             "bbb",
             "ddd"
-          ]
+          ],
+          "pattern": "ExportDeclaration"
         },
         "matches": [
           {
@@ -3532,7 +3812,8 @@ describe('ast.exportDeclaration', () => {
         "params": {
           "name": [
             "yyy"
-          ]
+          ],
+          "pattern": "ExportDeclaration"
         },
         "matches": [
           {
@@ -3551,7 +3832,8 @@ describe('ast.exportDeclaration', () => {
           "name": [
             "yyy"
           ],
-          "isTypeOnly": true
+          "isTypeOnly": true,
+          "pattern": "ExportDeclaration"
         },
         "matches": [
           {
@@ -3568,7 +3850,8 @@ describe('ast.exportDeclaration', () => {
       Pattern<ExportDeclaration> {
         "params": {
           "name": "Unknown",
-          "isTypeOnly": true
+          "isTypeOnly": true,
+          "pattern": "ExportDeclaration"
         },
         "matches": [
           {
@@ -3596,7 +3879,8 @@ describe('ast.exportDeclaration', () => {
             "aaa",
             "bbb",
             "Unknown"
-          ]
+          ],
+          "pattern": "ExportDeclaration"
         },
         "matches": [
           {
@@ -3616,7 +3900,8 @@ describe('ast.exportDeclaration', () => {
             "aaa",
             "bbb",
             "Identifier"
-          ]
+          ],
+          "pattern": "ExportDeclaration"
         },
         "matches": [
           {
@@ -3644,7 +3929,8 @@ describe('ast.exportDeclaration', () => {
       Pattern<ExportDeclaration> {
         "params": {
           "moduleSpecifier": "./mod",
-          "name": "SyntaxList"
+          "name": "SyntaxList",
+          "pattern": "ExportDeclaration"
         },
         "matches": [
           {
@@ -3671,7 +3957,8 @@ describe('ast.exportDeclaration', () => {
       `
       Pattern<ExportDeclaration> {
         "params": {
-          "moduleSpecifier": "./mod"
+          "moduleSpecifier": "./mod",
+          "pattern": "ExportDeclaration"
         },
         "matches": [
           {
@@ -3696,6 +3983,9 @@ describe('ast.exportDeclaration', () => {
       ),
     ).toMatchInlineSnapshot(`
       Pattern<ExportDeclaration> {
+        "params": {
+          "pattern": "ExportDeclaration"
+        },
         "matches": [
           {
             "kind": "ExportDeclaration",
@@ -3724,6 +4014,9 @@ describe('ast.exportDeclaration', () => {
       ),
     ).toMatchInlineSnapshot(`
       Pattern<ExportDeclaration> {
+        "params": {
+          "pattern": "ExportDeclaration"
+        },
         "matches": [
           {
             "kind": "ExportDeclaration",
@@ -3744,6 +4037,13 @@ describe('ast.exportDeclaration', () => {
       ),
     ).toMatchInlineSnapshot(`
       Pattern<ExportDeclaration> {
+        "params": {
+          "type": 278,
+          "props": {
+            "moduleSpecifier": "StringLiteral",
+            "exportClause": "JSDocUnknownType"
+          }
+        },
         "matches": [
           {
             "kind": "ExportDeclaration",
@@ -3770,7 +4070,8 @@ test('ast.exportAssignment', () => {
   expect(traverse(sourceFile, ast.exportAssignment(ast.identifier('xxx')))).toMatchInlineSnapshot(`
     Pattern<ExportAssignment> {
       "params": {
-        "expression": "Identifier"
+        "expression": "Identifier",
+        "pattern": "ExportAssignment"
       },
       "matches": [
         {
@@ -3789,7 +4090,8 @@ test('ast.exportAssignment', () => {
     Pattern<ExportAssignment> {
       "params": {
         "expression": "Identifier",
-        "isExportEquals": true
+        "isExportEquals": true,
+        "pattern": "ExportAssignment"
       },
       "matches": [
         {

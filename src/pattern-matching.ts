@@ -26,6 +26,7 @@ export class Pattern<
   kind: SyntaxKind
   kindName: string | undefined
   params: Params
+  refName?: string
 
   lastMatch?: TMatch | undefined
   matches: Set<TMatch> = new Set()
@@ -57,12 +58,86 @@ export class Pattern<
     }
   }
 
+  /**
+   * Tag the pattern with the given name so it can be easily found later, or collected with `collectCaptures`
+   */
+  ref(name: string) {
+    this.refName = name
+    return this
+  }
+
+  /**
+   * Returns every children patterns found in this.params in an object using their refName
+   * Each refName is unique, so nested patterns with the same refName will override each other
+   *
+   * @example
+   * ast.node(SyntaxKind.CallExpression, {
+   *  expression: ast.ref('fn'),
+   *  arguments: ast.tuple(ast.ref('arg1'), ast.ref('arg2'))
+   * })
+   *
+   * //will return
+   *
+   * ({
+   *  fn: expressionPattern,
+   *  arg1: arg1Pattern,
+   *  arg2: arg2Pattern,
+   * })
+   */
+  collectCaptures() {
+    if (!this.params) return {}
+
+    const captures = {} as Record<string, Pattern>
+    const process = (obj: Record<string, any>) => {
+      for (const [key, value] of Object.entries(obj)) {
+        if (!value) continue
+        console.log({ key })
+
+        if (value instanceof Pattern) {
+          // console.log(2, value)
+          if (value.refName) {
+            captures[value.refName] = value
+          }
+
+          const nested = value.collectCaptures()
+          Object.assign(captures, nested)
+          continue
+        }
+
+        if (Array.isArray(value)) {
+          for (const p of value) {
+            // console.log(1, p.toString())
+            if (p instanceof Pattern) {
+              if (p.refName) {
+                captures[p.refName] = p
+              }
+
+              const nested = p.collectCaptures()
+              Object.assign(captures, nested)
+            }
+          }
+
+          continue
+        }
+
+        if (typeof value === 'object' && value !== null && !Node.isNode(value)) {
+          process(value)
+        }
+      }
+    }
+
+    process(this.params)
+
+    return captures
+  }
+
   toString() {
     if (!this.lastMatch) `Pattern<${this.kindName}> no match`
 
     return `Pattern<${this.kindName}> ${JSON.stringify(
       {
         params: this.params,
+        refName: this.refName,
         matches: Array.from(this.matches).map((n) => toString(n as Node)),
       },
       (_key, value) => {
@@ -99,12 +174,16 @@ interface ListOptions {
 export class ast {
   static kind(syntaxKind: SyntaxKind) {
     const matcher = Node.is(syntaxKind)
-    return new Pattern({ kind: syntaxKind, match: (node) => (Array.isArray(node) ? undefined : matcher(node)) })
+    return new Pattern({
+      kind: syntaxKind,
+      match: (node) => (Array.isArray(node) ? undefined : matcher(node)),
+    })
   }
 
   static node<TKind extends SyntaxKind>(type: TKind, props?: NodeParams<TKind>) {
-    const _props = props ? compact(props) : undefined
+    const _props = (props ? compact(props) : undefined) as NodeParams<TKind> | undefined
     return new Pattern({
+      params: { type, props: _props },
       kind: type,
       match: (node: Node | Node[]) => {
         if (Array.isArray(node)) return false
@@ -171,6 +250,13 @@ export class ast {
   }
 
   /**
+   * Will match ANYTHING, tag the match with the given name, and return the node
+   */
+  static ref(name: string) {
+    return ast.maybeNode(ast.any()).ref(name)
+  }
+
+  /**
    * Returns true for any node list with every element matching the given pattern
    */
   static every<TPattern extends Pattern>(pattern: TPattern, options?: ListOptions) {
@@ -233,11 +319,11 @@ export class ast {
     })
   }
 
-  static contains<TPattern extends Pattern>(pattern: TPattern, until?: TPattern) {
+  static contains<TInside extends Pattern, TUntil extends Pattern>(pattern: TInside, until?: TUntil) {
     const seen = new WeakSet()
 
     return new Pattern({
-      params: { pattern },
+      params: { pattern, until },
       kind: SyntaxKind.Unknown,
       match: (node) => {
         if (Array.isArray(node)) return
@@ -263,6 +349,7 @@ export class ast {
 
   static when<TInput = Node | Node[]>(condition: (node: TInput) => boolean | Node | Node[] | undefined) {
     return new Pattern({
+      params: { condition },
       kind: SyntaxKind.Unknown as any,
       match: condition as any,
     })
@@ -273,6 +360,7 @@ export class ast {
     transform: (nodeOrList: PatternNode<TPattern>) => RNode | RNode[] | boolean | undefined,
   ) {
     return new Pattern<ReturnType<RNode['getKind']>, RNode>({
+      params: { pattern },
       kind: pattern.kind as any,
       match: (node) => {
         if (!pattern.match(node)) return
@@ -650,7 +738,7 @@ export class ast {
     })
 
     return new Pattern({
-      params: { name, propertyName, isTypeOnly },
+      params: { name, propertyName, isTypeOnly, pattern },
       kind: SyntaxKind.ImportSpecifier,
       match: single(pattern),
     })
@@ -672,7 +760,7 @@ export class ast {
     const withTypeOnly = isNotNullish(isTypeOnly)
 
     return new Pattern({
-      params: { moduleSpecifier, name, isTypeOnly },
+      params: { moduleSpecifier, name, isTypeOnly, pattern },
       kind: SyntaxKind.ExportDeclaration,
       match: (node) => {
         if (Array.isArray(node)) return
@@ -692,7 +780,7 @@ export class ast {
     })
 
     return new Pattern({
-      params: { name, propertyName, isTypeOnly },
+      params: { name, propertyName, isTypeOnly, pattern },
       kind: SyntaxKind.ExportSpecifier,
       match: single(pattern),
     })
@@ -704,7 +792,7 @@ export class ast {
       isExportEquals: isNotNullish(isExportEquals) ? ast.boolean(isExportEquals) : undefined,
     })
     return new Pattern({
-      params: { expression, isExportEquals },
+      params: { expression, isExportEquals, pattern },
       kind: SyntaxKind.ExportAssignment,
       match: single(pattern),
     })
