@@ -31,7 +31,7 @@ export class Pattern<
   lastMatch?: TMatch | undefined
   matches: Set<TMatch> = new Set()
 
-  private assert: (node: Node | Node[]) => boolean | Node | Node[] | undefined
+  private assert: (node: Node | Node[], self?: Pattern) => boolean | Node | Node[] | undefined
 
   constructor({ kind, match: assert, params }: PatternOptions<TSyntax, Params>) {
     this.kind = kind
@@ -41,7 +41,7 @@ export class Pattern<
   }
 
   match(node: Node | Node[]) {
-    const result = this.assert(node)
+    const result = this.assert(node, this as any)
     // Boolean(result) &&
     //   console.log(0, 'matchFn', {
     //     node: Array.isArray(node) ? node.length : node.getKindName(),
@@ -76,7 +76,7 @@ export class Pattern<
    *  arguments: ast.tuple(ast.ref('arg1'), ast.ref('arg2'))
    * })
    *
-   * //will return
+   * // will return
    *
    * ({
    *  fn: expressionPattern,
@@ -93,7 +93,7 @@ export class Pattern<
     while (stack.length > 0) {
       const obj = stack.pop() as Record<string, any>
 
-      for (const [key, value] of Object.entries(obj)) {
+      for (const [_key, value] of Object.entries(obj)) {
         if (!value) continue
 
         if (value instanceof Pattern) {
@@ -158,6 +158,7 @@ export type NodeParams<TKind extends SyntaxKind> = {
 }
 
 export type PatternNode<TPattern extends Pattern> = TPattern extends Pattern<infer _, infer TMatch> ? TMatch : never
+export type PatternKind<TPattern extends Pattern> = TPattern extends Pattern<infer TKind, infer _> ? TKind : never
 
 const booleans = {
   true: (sourceFile: SourceFile) => createWrappedNode(ts.factory.createTrue(), { sourceFile: sourceFile.compilerNode }),
@@ -171,7 +172,7 @@ interface ListOptions {
 }
 
 export class ast {
-  static kind(syntaxKind: SyntaxKind) {
+  static kind<TKind extends SyntaxKind>(syntaxKind: TKind) {
     const matcher = Node.is(syntaxKind)
     return new Pattern({
       kind: syntaxKind,
@@ -179,14 +180,25 @@ export class ast {
     })
   }
 
-  static node<TKind extends SyntaxKind>(type: TKind, props?: NodeParams<TKind>) {
+  static is<TPattern extends Pattern>(pattern: TPattern, props?: NodeParams<PatternKind<TPattern>>) {
+    const matcher = ast.with(props)
+
+    return new Pattern({
+      params: { pattern, props },
+      kind: SyntaxKind.Unknown,
+      match: (node) => {
+        return matcher.match(node)
+      },
+    })
+  }
+
+  static with<TKind extends SyntaxKind>(props?: NodeParams<TKind>) {
     const _props = (props ? compact(props) : undefined) as NodeParams<TKind> | undefined
     return new Pattern({
-      params: { type, props: _props },
-      kind: type,
+      params: { props: _props },
+      kind: SyntaxKind.Unknown,
       match: (node: Node | Node[]) => {
         if (Array.isArray(node)) return false
-        if (!node.isKind(type)) return false
         if (!_props) return true
 
         for (const [key, _pattern] of Object.entries(_props)) {
@@ -226,6 +238,20 @@ export class ast {
         }
 
         return true
+      },
+    })
+  }
+
+  static node<TKind extends SyntaxKind>(type: TKind, props?: NodeParams<TKind>) {
+    const pattern = ast.with(props)
+
+    return new Pattern({
+      params: { type, props },
+      kind: type,
+      match: (node: Node | Node[]) => {
+        if (Array.isArray(node)) return false
+        if (!node.isKind(type)) return false
+        return pattern.match(node)
       },
     })
   }
@@ -354,16 +380,19 @@ export class ast {
     })
   }
 
+  /**
+   * Takes a pattern and refine its result with the given transform function
+   */
   static refine<TPattern extends Pattern, RNode extends Node>(
     pattern: TPattern,
-    transform: (nodeOrList: PatternNode<TPattern>) => RNode | RNode[] | boolean | undefined,
+    transform: (nodeOrList: PatternNode<TPattern>, self: Pattern) => RNode | RNode[] | boolean | undefined,
   ) {
     return new Pattern<ReturnType<RNode['getKind']>, RNode>({
       params: { pattern },
       kind: pattern.kind as any,
       match: (node) => {
         if (!pattern.match(node)) return
-        return transform(node as PatternNode<TPattern>)
+        return transform(node as PatternNode<TPattern>, pattern)
       },
     })
   }
@@ -547,7 +576,7 @@ export class ast {
    * Returns any node or list that matches any of the given patterns
    */
   static union<TList extends Pattern[]>(...patterns: TList) {
-    return new Pattern({
+    return new Pattern<PatternKind<TList[number]>>({
       params: { patterns },
       kind: SyntaxKind.UnionType as any,
       match: (node) => {
