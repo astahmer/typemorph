@@ -54,6 +54,78 @@ test('ast.node - no match', () => {
   expect(pattern).toMatchInlineSnapshot('undefined')
 })
 
+test('ast.is', () => {
+  const code = `
+        someFn()
+        another(1, true, 3, "str")
+        find({ id: 1 })
+    `
+
+  const sourceFile = parse(code)
+
+  expect(
+    traverse(
+      sourceFile,
+      ast.is(ast.kind(ts.SyntaxKind.CallExpression), {
+        expression: ast.identifier('another'),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<Unknown> {
+      "params": {
+        "pattern": "CallExpression",
+        "props": {
+          "expression": "Identifier"
+        }
+      },
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 3,
+          "column": 18
+        }
+      ]
+    }
+  `)
+})
+
+test('ast.with', () => {
+  const code = `
+        someFn()
+        another(1, true, 3, "str")
+        find({ id: 1 })
+    `
+
+  const sourceFile = parse(code)
+
+  const pattern = ast.kind(ts.SyntaxKind.CallExpression)
+  const propsPattern = ast.with({
+    expression: ast.identifier('another'),
+  })
+
+  expect(
+    traverse(
+      sourceFile,
+      ast.refine(pattern, (node) => !Array.isArray(node) && propsPattern.match(node)),
+    ),
+  ).toMatchInlineSnapshot(`
+    Pattern<CallExpression> {
+      "params": {
+        "pattern": "CallExpression"
+      },
+      "matches": [
+        {
+          "kind": "CallExpression",
+          "text": "another(1, true, 3, \\"str\\")",
+          "line": 3,
+          "column": 18
+        }
+      ]
+    }
+  `)
+})
+
 test('ast.nodeList', () => {
   const code = `
         someFn({})
@@ -1079,8 +1151,9 @@ test('ast.maybeNode', () => {
   `)
 })
 
-test('ast.named', () => {
-  const code = `
+describe('ast.named', () => {
+  test('identifier', () => {
+    const code = `
     import xxx from "some-module"
 
         another(1, true, 3, "str")
@@ -1088,9 +1161,9 @@ test('ast.named', () => {
         find({ id: 1 })
     `
 
-  const sourceFile = parse(code)
+    const sourceFile = parse(code)
 
-  expect(traverse(sourceFile, ast.named('find'))).toMatchInlineSnapshot(`
+    expect(traverse(sourceFile, ast.named('find'))).toMatchInlineSnapshot(`
     Pattern<Unknown> {
       "params": {
         "name": "find"
@@ -1105,9 +1178,19 @@ test('ast.named', () => {
       ]
     }
   `)
+  })
 
-  const someModule = traverse(sourceFile, ast.named('xxx'))
-  expect(someModule).toMatchInlineSnapshot(`
+  test('import clause', () => {
+    const code = `
+    import xxx from "some-module"
+
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+    `
+
+    const sourceFile = parse(code)
+    expect(traverse(sourceFile, ast.named('xxx'))).toMatchInlineSnapshot(`
     Pattern<Unknown> {
       "params": {
         "name": "xxx"
@@ -1122,6 +1205,94 @@ test('ast.named', () => {
       ]
     }
   `)
+  })
+
+  test('variable declaration', () => {
+    const code = `
+    import xxx from "some-module"
+
+        const foo = 1
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+    `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.named('foo'))).toMatchInlineSnapshot(`
+      Pattern<Unknown> {
+        "params": {
+          "name": "foo"
+        },
+        "matches": [
+          {
+            "kind": "VariableDeclaration",
+            "text": "foo = 1",
+            "line": 4,
+            "column": 36
+          }
+        ]
+      }
+    `)
+  })
+
+  test('variable declaration', () => {
+    const code = `
+    import xxx from "some-module"
+
+        const foo = 1
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+    `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.named('foo'))).toMatchInlineSnapshot(`
+      Pattern<Unknown> {
+        "params": {
+          "name": "foo"
+        },
+        "matches": [
+          {
+            "kind": "VariableDeclaration",
+            "text": "foo = 1",
+            "line": 4,
+            "column": 36
+          }
+        ]
+      }
+    `)
+  })
+
+  test('object binding pattern', () => {
+    const code = `
+    import xxx from "some-module"
+
+        const { bar } = obj
+        another(1, true, 3, "str")
+        someFn()
+        find({ id: 1 })
+    `
+
+    const sourceFile = parse(code)
+
+    expect(traverse(sourceFile, ast.named('bar'))).toMatchInlineSnapshot(`
+      Pattern<Unknown> {
+        "params": {
+          "name": "bar"
+        },
+        "matches": [
+          {
+            "kind": "BindingElement",
+            "text": "bar",
+            "line": 4,
+            "column": 36
+          }
+        ]
+      }
+    `)
+  })
 })
 
 test('ast.identifier', () => {

@@ -172,6 +172,9 @@ interface ListOptions {
 }
 
 export class ast {
+  /**
+   * Only matches the given node kind
+   */
   static kind<TKind extends SyntaxKind>(syntaxKind: TKind) {
     const matcher = Node.is(syntaxKind)
     return new Pattern({
@@ -180,6 +183,9 @@ export class ast {
     })
   }
 
+  /**
+   * Takes an existing pattern and further refines it with the given AST properties
+   */
   static is<TPattern extends Pattern>(pattern: TPattern, props?: NodeParams<PatternKind<TPattern>>) {
     const matcher = ast.with(props)
 
@@ -187,11 +193,15 @@ export class ast {
       params: { pattern, props },
       kind: SyntaxKind.Unknown,
       match: (node) => {
-        return matcher.match(node)
+        return pattern.match(node) && matcher.match(node)
       },
     })
   }
 
+  /**
+   * Matches any node with the given AST properties
+   * The point is to use this in combination with other patterns that already asserted a set of node kind
+   */
   static with<TKind extends SyntaxKind>(props?: NodeParams<TKind>) {
     const _props = (props ? compact(props) : undefined) as NodeParams<TKind> | undefined
     return new Pattern({
@@ -242,6 +252,9 @@ export class ast {
     })
   }
 
+  /**
+   * Asserts that the node is of the given kind with the given AST properties
+   */
   static node<TKind extends SyntaxKind>(type: TKind, props?: NodeParams<TKind>) {
     const pattern = ast.with(props)
 
@@ -330,10 +343,14 @@ export class ast {
     })
   }
 
+  /** Will match any node or nodeList (as long as it's not undefined) */
   static any() {
     return new Pattern({ kind: SyntaxKind.Unknown, match: () => true })
   }
 
+  /**
+   * Negates the given pattern
+   */
   static not<TPattern extends Pattern>(pattern: TPattern) {
     return new Pattern({
       params: { pattern },
@@ -344,6 +361,10 @@ export class ast {
     })
   }
 
+  /**
+   * Matches a node if it contains a descendant matching the given pattern,
+   * optionally stops the traversal when the "until" pattern matches
+   */
   static contains<TInside extends Pattern, TUntil extends Pattern>(pattern: TInside, until?: TUntil) {
     const seen = new WeakSet()
 
@@ -372,6 +393,9 @@ export class ast {
     })
   }
 
+  /**
+   * Matches a node with a custom function
+   */
   static when<TInput = Node | Node[]>(condition: (node: TInput) => boolean | Node | Node[] | undefined) {
     return new Pattern({
       params: { condition },
@@ -397,6 +421,14 @@ export class ast {
     })
   }
 
+  /**
+   * Matches a node if it has the given name
+   * @example ast.named('foo') -> matches `foo` in `const foo = 1`
+   * @example ast.named('foo') -> matches `foo` in `const { foo } = obj`
+   * @example ast.named('foo') -> matches `foo` in `foo?.()`
+   * @example ast.named('foo') -> matches `foo` in `import foo from 'bar'`
+   *
+   */
   static named(name: string) {
     return new Pattern({
       kind: SyntaxKind.Unknown,
